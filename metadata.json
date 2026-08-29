@@ -1,0 +1,6 @@
+{
+  "name": "Personal Income Expense Management System",
+  "description": "Progressive Web App for managing personal income and expenses with offline support, auto cloud sync, role-based admin approval, and activity auditing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
