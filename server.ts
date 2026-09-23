@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import { User, ActivityLog, Transaction, SyncQueueItem, UserRole, AccountStatus } from './src/types';
 
@@ -13,192 +14,169 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
+// ==========================================
+// PASSWORD HASHING (PBKDF2 via Node crypto)
+// ==========================================
+
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto
+    .pbkdf2Sync(password, salt, 100_000, 64, 'sha512')
+    .toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, stored: string): boolean {
+  const [salt, storedHash] = stored.split(':');
+  if (!salt || !storedHash) return false;
+  const hash = crypto
+    .pbkdf2Sync(password, salt, 100_000, 64, 'sha512')
+    .toString('hex');
+  return crypto.timingSafeEqual(
+    Buffer.from(hash, 'hex'),
+    Buffer.from(storedHash, 'hex')
+  );
+}
+
+// ==========================================
+// DATABASE SCHEMA & SEEDING
+// ==========================================
+
 interface DatabaseSchema {
   users: Array<User & { passwordHash?: string }>;
   transactions: Transaction[];
   logs: ActivityLog[];
 }
 
-// Initial seed data
-const initialDb: DatabaseSchema = {
-  users: [
-    {
-      id: 'admin-1',
-      name: 'System Admin',
-      email: 'admin@finance.app',
-      passwordHash: 'admin123',
-      role: 'admin',
-      status: 'active',
-      createdAt: '2025-01-01T08:00:00.000Z',
-      lastLoginAt: new Date().toISOString(),
-      lastActiveAt: new Date().toISOString(),
-      totalLogins: 12,
-      currency: 'USD',
-      monthlyBudgetLimit: 5000,
-    },
-    {
-      id: 'user-demo',
-      name: 'Mizanur Rahman',
-      email: 'user@finance.app',
-      passwordHash: 'user123',
-      role: 'user',
-      status: 'active',
-      createdAt: '2025-02-01T09:30:00.000Z',
-      lastLoginAt: new Date().toISOString(),
-      lastActiveAt: new Date().toISOString(),
-      totalLogins: 28,
-      currency: 'USD',
-      monthlyBudgetLimit: 3200,
-    },
-    {
-      id: 'user-pending-1',
-      name: 'Alex Johnson',
-      email: 'alex@example.com',
-      passwordHash: 'alex123',
-      role: 'user',
-      status: 'pending',
-      createdAt: new Date(Date.now() - 3600 * 1000 * 24 * 2).toISOString(),
-      lastLoginAt: new Date(Date.now() - 3600 * 1000 * 24 * 2).toISOString(),
-      lastActiveAt: new Date(Date.now() - 3600 * 1000 * 24 * 2).toISOString(),
-      totalLogins: 1,
-      currency: 'USD',
-      monthlyBudgetLimit: 2500,
-    }
-  ],
-  transactions: [
-    {
-      id: 'tx-1',
-      userId: 'user-demo',
-      type: 'income',
-      amount: 4500,
-      category: 'Salary',
-      date: new Date().toISOString().slice(0, 10),
-      paymentMethod: 'bank_transfer',
-      note: 'Monthly Senior Engineer Compensation',
-      tags: ['salary', 'primary'],
-      createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-      updatedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-      syncStatus: 'synced',
-    },
-    {
-      id: 'tx-2',
-      userId: 'user-demo',
-      type: 'expense',
-      amount: 1200,
-      category: 'Rent & Housing',
-      date: new Date().toISOString().slice(0, 10),
-      paymentMethod: 'bank_transfer',
-      note: 'Apartment Monthly Lease Payment',
-      tags: ['housing', 'fixed'],
-      createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-      updatedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-      syncStatus: 'synced',
-    },
-    {
-      id: 'tx-3',
-      userId: 'user-demo',
-      type: 'expense',
-      amount: 185.50,
-      category: 'Food & Dining',
-      date: new Date().toISOString().slice(0, 10),
-      paymentMethod: 'credit_card',
-      note: 'Weekly Grocery Store run',
-      tags: ['groceries'],
-      createdAt: new Date(Date.now() - 86400000 * 1).toISOString(),
-      updatedAt: new Date(Date.now() - 86400000 * 1).toISOString(),
-      syncStatus: 'synced',
-    },
-    {
-      id: 'tx-4',
-      userId: 'user-demo',
-      type: 'income',
-      amount: 850,
-      category: 'Freelance',
-      date: new Date(Date.now() - 86400000 * 4).toISOString().slice(0, 10),
-      paymentMethod: 'mobile_wallet',
-      note: 'React UI Design Client Project Milestone',
-      tags: ['consulting'],
-      createdAt: new Date(Date.now() - 86400000 * 4).toISOString(),
-      updatedAt: new Date(Date.now() - 86400000 * 4).toISOString(),
-      syncStatus: 'synced',
-    },
-    {
-      id: 'tx-5',
-      userId: 'user-demo',
-      type: 'expense',
-      amount: 65.00,
-      category: 'Utilities',
-      date: new Date(Date.now() - 86400000 * 3).toISOString().slice(0, 10),
-      paymentMethod: 'debit_card',
-      note: 'High-speed Fiber Internet Subscription',
-      tags: ['bills'],
-      createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-      updatedAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-      syncStatus: 'synced',
-    },
-    {
-      id: 'tx-6',
-      userId: 'user-demo',
-      type: 'expense',
-      amount: 120.00,
-      category: 'Transportation',
-      date: new Date(Date.now() - 86400000 * 5).toISOString().slice(0, 10),
-      paymentMethod: 'credit_card',
-      note: 'Monthly Metro Pass & Fuel refill',
-      tags: ['commute'],
-      createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
-      updatedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
-      syncStatus: 'synced',
-    }
-  ],
-  logs: [
-    {
-      id: 'log-1',
-      userId: 'admin-1',
-      userName: 'System Admin',
-      userEmail: 'admin@finance.app',
-      action: 'LOGIN',
-      details: 'Administrator logged into management console',
-      ip: '127.0.0.1',
-      device: 'Desktop Chrome 124 / macOS',
-      timestamp: new Date(Date.now() - 3600 * 1000 * 4).toISOString(),
-    },
-    {
-      id: 'log-2',
-      userId: 'user-demo',
-      userName: 'Mizanur Rahman',
-      userEmail: 'user@finance.app',
-      action: 'LOGIN',
-      details: 'User authenticated via mobile PWA client',
-      ip: '192.168.1.45',
-      device: 'PWA Mobile / Android 14',
-      timestamp: new Date(Date.now() - 3600 * 1000 * 2).toISOString(),
-    },
-    {
-      id: 'log-3',
-      userId: 'user-demo',
-      userName: 'Mizanur Rahman',
-      userEmail: 'user@finance.app',
-      action: 'OFFLINE_SYNC',
-      details: 'Synced 3 offline transactions from local cache successfully',
-      ip: '192.168.1.45',
-      device: 'PWA Mobile / Android 14',
-      timestamp: new Date(Date.now() - 3600 * 1000 * 1).toISOString(),
-    }
-  ]
-};
+// Seeded admin accounts — passwords are hashed at runtime so the seed is
+// never stored with plaintext credentials.
+const SEED_SUPER_ADMIN_EMAIL = 'mizan.boss@gmail.com';
+const SEED_ADMIN_EMAIL = 'admin@gmail.com';
+
+function buildInitialDb(): DatabaseSchema {
+  return {
+    users: [
+      {
+        id: 'super-admin-1',
+        name: 'Mizan (Super Admin)',
+        email: SEED_SUPER_ADMIN_EMAIL,
+        passwordHash: hashPassword('Mizan123'),
+        role: 'super_admin' as UserRole,
+        status: 'active',
+        createdAt: '2025-01-01T00:00:00.000Z',
+        lastLoginAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+        totalLogins: 0,
+        currency: 'USD',
+        monthlyBudgetLimit: 10000,
+      },
+      {
+        id: 'admin-1',
+        name: 'System Admin',
+        email: SEED_ADMIN_EMAIL,
+        passwordHash: hashPassword('admin123'),
+        role: 'admin' as UserRole,
+        status: 'active',
+        createdAt: '2025-01-01T08:00:00.000Z',
+        lastLoginAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+        totalLogins: 0,
+        currency: 'USD',
+        monthlyBudgetLimit: 5000,
+      },
+    ],
+    transactions: [],
+    logs: [
+      {
+        id: 'log-seed-1',
+        userId: 'super-admin-1',
+        userName: 'Mizan (Super Admin)',
+        userEmail: SEED_SUPER_ADMIN_EMAIL,
+        action: 'LOGIN',
+        details: 'Super Admin account seeded and initialized',
+        ip: '127.0.0.1',
+        device: 'System Seed',
+        timestamp: new Date().toISOString(),
+      },
+    ],
+  };
+}
+
+// ==========================================
+// DB READ / WRITE
+// ==========================================
 
 function readDb(): DatabaseSchema {
   try {
     if (!fs.existsSync(DB_FILE)) {
-      fs.writeFileSync(DB_FILE, JSON.stringify(initialDb, null, 2), 'utf-8');
-      return initialDb;
+      const fresh = buildInitialDb();
+      fs.writeFileSync(DB_FILE, JSON.stringify(fresh, null, 2), 'utf-8');
+      return fresh;
     }
     const data = fs.readFileSync(DB_FILE, 'utf-8');
-    return JSON.parse(data);
+    const parsed: DatabaseSchema = JSON.parse(data);
+
+    // Migration: ensure seeded admin accounts always exist.
+    // If the DB was created before the new seed, insert them now.
+    let dirty = false;
+    const hasSuperAdmin = parsed.users.some(u => u.email === SEED_SUPER_ADMIN_EMAIL);
+    const hasAdmin = parsed.users.some(u => u.email === SEED_ADMIN_EMAIL);
+
+    if (!hasSuperAdmin) {
+      parsed.users.unshift({
+        id: 'super-admin-1',
+        name: 'Mizan (Super Admin)',
+        email: SEED_SUPER_ADMIN_EMAIL,
+        passwordHash: hashPassword('Mizan123'),
+        role: 'super_admin' as UserRole,
+        status: 'active',
+        createdAt: '2025-01-01T00:00:00.000Z',
+        lastLoginAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+        totalLogins: 0,
+        currency: 'USD',
+        monthlyBudgetLimit: 10000,
+      });
+      dirty = true;
+    }
+
+    if (!hasAdmin) {
+      parsed.users.push({
+        id: 'admin-1',
+        name: 'System Admin',
+        email: SEED_ADMIN_EMAIL,
+        passwordHash: hashPassword('admin123'),
+        role: 'admin' as UserRole,
+        status: 'active',
+        createdAt: '2025-01-01T08:00:00.000Z',
+        lastLoginAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+        totalLogins: 0,
+        currency: 'USD',
+        monthlyBudgetLimit: 5000,
+      });
+      dirty = true;
+    }
+
+    // Migrate any user that still has a plaintext password (legacy seed).
+    // A hashed password always contains a colon separator.
+    parsed.users = parsed.users.map(u => {
+      if (u.passwordHash && !u.passwordHash.includes(':')) {
+        return { ...u, passwordHash: hashPassword(u.passwordHash) };
+      }
+      return u;
+    });
+
+    if (dirty) {
+      fs.writeFileSync(DB_FILE, JSON.stringify(parsed, null, 2), 'utf-8');
+    }
+
+    return parsed;
   } catch (err) {
-    console.error('Error reading DB, using initial data:', err);
-    return initialDb;
+    console.error('Error reading DB, rebuilding from seed:', err);
+    const fresh = buildInitialDb();
+    fs.writeFileSync(DB_FILE, JSON.stringify(fresh, null, 2), 'utf-8');
+    return fresh;
   }
 }
 
@@ -209,6 +187,10 @@ function writeDb(data: DatabaseSchema) {
     console.error('Error writing DB:', err);
   }
 }
+
+// ==========================================
+// ACTIVITY LOG HELPER
+// ==========================================
 
 function addActivityLog(
   userId: string,
@@ -231,30 +213,55 @@ function addActivityLog(
     timestamp: new Date().toISOString(),
   };
   db.logs.unshift(newLog);
-  // Keep latest 200 logs
-  if (db.logs.length > 200) {
-    db.logs = db.logs.slice(0, 200);
+  // Keep latest 500 logs
+  if (db.logs.length > 500) {
+    db.logs = db.logs.slice(0, 500);
   }
   writeDb(db);
 }
+
+// ==========================================
+// EXPRESS SERVER
+// ==========================================
 
 async function startServer() {
   const app = express();
   app.use(express.json({ limit: '10mb' }));
 
-  // Request logger middleware
-  app.use((req, res, next) => {
-    next();
-  });
-
   // Health check
-  app.get('/api/health', (req, res) => {
+  app.get('/api/health', (_req, res) => {
     res.json({
       status: 'ok',
       service: 'Personal Income Expense Management System Core API',
       time: new Date().toISOString(),
     });
   });
+
+  // ==========================================
+  // RBAC MIDDLEWARE
+  // ==========================================
+
+  /** Requires the caller to be admin OR super_admin */
+  const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const userId = req.headers['x-user-id'] as string;
+    const db = readDb();
+    const user = db.users.find(u => u.id === userId);
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+      return res.status(403).json({ error: 'Forbidden: Admin access required.' });
+    }
+    next();
+  };
+
+  /** Requires the caller to be super_admin only */
+  const requireSuperAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const userId = req.headers['x-user-id'] as string;
+    const db = readDb();
+    const user = db.users.find(u => u.id === userId);
+    if (!user || user.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Forbidden: Super Admin access required.' });
+    }
+    next();
+  };
 
   // ==========================================
   // AUTHENTICATION ROUTES
@@ -266,6 +273,9 @@ async function startServer() {
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Name, email, and password are required' });
     }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+    }
 
     const db = readDb();
     const existing = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
@@ -273,22 +283,22 @@ async function startServer() {
       return res.status(409).json({ error: 'An account with this email already exists.' });
     }
 
-    const isFirstUser = db.users.length === 0;
-    const role: UserRole = isFirstUser ? 'admin' : 'user';
-    // By default, users need Admin approval ('pending'). Admin is auto-active.
-    const status: AccountStatus = role === 'admin' ? 'active' : 'pending';
+    // All self-registered users start as 'user' with 'pending' status.
+    // Only seeded admin accounts can have elevated roles.
+    const role: UserRole = 'user';
+    const status: AccountStatus = 'pending';
 
     const newUser: User & { passwordHash: string } = {
       id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       name: name.trim(),
       email: email.trim().toLowerCase(),
-      passwordHash: password,
+      passwordHash: hashPassword(password),
       role,
       status,
       createdAt: new Date().toISOString(),
       lastLoginAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
-      totalLogins: 1,
+      totalLogins: 0,
       currency: currency || 'USD',
       monthlyBudgetLimit: Number(monthlyBudgetLimit) || 3000,
     };
@@ -301,16 +311,14 @@ async function startServer() {
       newUser.name,
       newUser.email,
       'ACCOUNT_REGISTER',
-      `Registered new ${role} account (Status: ${status})`,
+      `Registered new user account (Status: ${status} — awaiting admin approval)`,
       req
     );
 
     const { passwordHash: _, ...safeUser } = newUser;
     res.status(201).json({
       user: safeUser,
-      message: status === 'pending'
-        ? 'Account registered successfully. Please wait for an Admin to approve your account before logging in.'
-        : 'Account created successfully.',
+      message: 'Account registered successfully. Please wait for an Admin to approve your account before logging in.',
     });
   });
 
@@ -323,7 +331,7 @@ async function startServer() {
 
     const db = readDb();
     const userIndex = db.users.findIndex(
-      u => u.email.toLowerCase() === email.trim().toLowerCase() && (u.passwordHash === password || !u.passwordHash)
+      u => u.email.toLowerCase() === email.trim().toLowerCase()
     );
 
     if (userIndex === -1) {
@@ -332,22 +340,30 @@ async function startServer() {
 
     const user = db.users[userIndex];
 
-    // Check account status
+    // Verify password
+    const passwordOk = user.passwordHash
+      ? verifyPassword(password, user.passwordHash)
+      : false;
+
+    if (!passwordOk) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
     if (user.status === 'pending') {
       return res.status(403).json({
-        error: 'Your account is currently pending administrator approval. Please contact the administrator.',
-        status: 'pending'
+        error: 'Your account is pending administrator approval. Please contact the administrator.',
+        status: 'pending',
       });
     }
 
     if (user.status === 'disabled') {
       return res.status(403).json({
         error: 'Your account has been deactivated by the administrator.',
-        status: 'disabled'
+        status: 'disabled',
       });
     }
 
-    // Update login timestamp & active stats
+    // Update login stats
     user.lastLoginAt = new Date().toISOString();
     user.lastActiveAt = new Date().toISOString();
     user.totalLogins = (user.totalLogins || 0) + 1;
@@ -366,7 +382,7 @@ async function startServer() {
     const { passwordHash: _, ...safeUser } = user;
     res.json({
       user: safeUser,
-      token: `token-${user.id}-${Date.now()}`
+      token: `token-${user.id}-${Date.now()}`,
     });
   });
 
@@ -374,7 +390,7 @@ async function startServer() {
   app.patch('/api/auth/profile', (req, res) => {
     const userId = req.headers['x-user-id'] as string;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized user' });
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const { name, currency, monthlyBudgetLimit } = req.body;
@@ -387,7 +403,9 @@ async function startServer() {
 
     if (name) db.users[userIndex].name = name.trim();
     if (currency) db.users[userIndex].currency = currency;
-    if (monthlyBudgetLimit !== undefined) db.users[userIndex].monthlyBudgetLimit = Number(monthlyBudgetLimit);
+    if (monthlyBudgetLimit !== undefined) {
+      db.users[userIndex].monthlyBudgetLimit = Number(monthlyBudgetLimit);
+    }
     db.users[userIndex].lastActiveAt = new Date().toISOString();
 
     writeDb(db);
@@ -396,34 +414,20 @@ async function startServer() {
   });
 
   // ==========================================
-  // ADMIN ROUTES (Strictly Role Moderation & Logs)
+  // ADMIN ROUTES (admin + super_admin)
   // ==========================================
 
-  // Middleware helper to ensure admin
-  const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const userId = req.headers['x-user-id'] as string;
-    const db = readDb();
-    const user = db.users.find(u => u.id === userId);
-    if (!user || user.role !== 'admin') {
-      return res.status(403).json({ error: 'Forbidden: Admin access required.' });
-    }
-    next();
-  };
-
-  // Get all users (Admin only)
+  // Get all users
   app.get('/api/admin/users', requireAdmin, (req, res) => {
     const db = readDb();
     const safeUsers = db.users.map(({ passwordHash: _, ...u }) => {
       const userTxCount = db.transactions.filter(t => t.userId === u.id && !t.isDeleted).length;
-      return {
-        ...u,
-        transactionCount: userTxCount,
-      };
+      return { ...u, transactionCount: userTxCount };
     });
     res.json({ users: safeUsers });
   });
 
-  // Change user status: Approve, Enable, Disable (Admin only)
+  // Change user status: Approve, Enable, Disable
   app.patch('/api/admin/users/:id/status', requireAdmin, (req, res) => {
     const { id } = req.params;
     const { status } = req.body as { status: AccountStatus };
@@ -443,9 +447,14 @@ async function startServer() {
 
     const targetUser = db.users[userIndex];
 
-    // Prevent disabling or modifying self
+    // Protect super_admin accounts from being modified by regular admins
+    if (targetUser.role === 'super_admin' && adminUser?.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Cannot modify a Super Admin account.' });
+    }
+
+    // Prevent self-demotion
     if (targetUser.id === adminUserId && status !== 'active') {
-      return res.status(400).json({ error: 'Admin cannot change their own account status' });
+      return res.status(400).json({ error: 'Cannot change your own account status.' });
     }
 
     const oldStatus = targetUser.status;
@@ -458,7 +467,7 @@ async function startServer() {
       adminUser?.name || 'Admin',
       adminUser?.email || 'admin',
       'STATUS_CHANGE',
-      `Admin changed status of ${targetUser.name} (${targetUser.email}) from ${oldStatus} to ${status}`,
+      `Changed status of ${targetUser.name} (${targetUser.email}) from ${oldStatus} → ${status}`,
       req
     );
 
@@ -466,13 +475,13 @@ async function startServer() {
     res.json({ user: safeUser, message: `Account status updated to ${status}` });
   });
 
-  // Delete user (Admin only)
+  // Delete user (admin can delete users; super_admin can delete admins too)
   app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
     const { id } = req.params;
     const adminUserId = req.headers['x-user-id'] as string;
 
     if (id === adminUserId) {
-      return res.status(400).json({ error: 'Cannot delete your own admin account' });
+      return res.status(400).json({ error: 'Cannot delete your own account.' });
     }
 
     const db = readDb();
@@ -483,8 +492,15 @@ async function startServer() {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Only super_admin can delete admin or super_admin accounts
+    if (
+      (targetUser.role === 'admin' || targetUser.role === 'super_admin') &&
+      adminUser?.role !== 'super_admin'
+    ) {
+      return res.status(403).json({ error: 'Only Super Admins can delete administrator accounts.' });
+    }
+
     db.users = db.users.filter(u => u.id !== id);
-    // Also remove their transactions
     db.transactions = db.transactions.filter(t => t.userId !== id);
     writeDb(db);
 
@@ -493,28 +509,69 @@ async function startServer() {
       adminUser?.name || 'Admin',
       adminUser?.email || 'admin',
       'ACCOUNT_DELETE',
-      `Admin permanently deleted account of ${targetUser.name} (${targetUser.email})`,
+      `Permanently deleted account of ${targetUser.name} (${targetUser.email})`,
       req
     );
 
-    res.json({ message: 'User account and associated records deleted successfully' });
+    res.json({ message: 'User account and associated records deleted successfully.' });
   });
 
-  // Get Activity Logs (Admin only)
+  // Get Activity Logs
   app.get('/api/admin/logs', requireAdmin, (req, res) => {
     const db = readDb();
     const { userId, action, limit } = req.query;
 
     let filtered = db.logs;
-    if (userId) {
-      filtered = filtered.filter(l => l.userId === userId);
-    }
-    if (action) {
-      filtered = filtered.filter(l => l.action === action);
-    }
+    if (userId) filtered = filtered.filter(l => l.userId === userId);
+    if (action) filtered = filtered.filter(l => l.action === action);
 
     const maxLimit = Number(limit) || 100;
     res.json({ logs: filtered.slice(0, maxLimit) });
+  });
+
+  // Super-admin-only: promote/demote a user's role
+  app.patch('/api/admin/users/:id/role', requireSuperAdmin, (req, res) => {
+    const { id } = req.params;
+    const { role } = req.body as { role: UserRole };
+    const superAdminId = req.headers['x-user-id'] as string;
+
+    if (!['admin', 'user'].includes(role)) {
+      return res.status(400).json({ error: 'Can only promote to admin or demote to user.' });
+    }
+
+    if (id === superAdminId) {
+      return res.status(400).json({ error: 'Cannot change your own role.' });
+    }
+
+    const db = readDb();
+    const superAdminUser = db.users.find(u => u.id === superAdminId);
+    const userIndex = db.users.findIndex(u => u.id === id);
+
+    if (userIndex === -1) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const target = db.users[userIndex];
+    if (target.role === 'super_admin') {
+      return res.status(400).json({ error: 'Cannot change another Super Admin\'s role.' });
+    }
+
+    const oldRole = target.role;
+    target.role = role;
+    db.users[userIndex] = target;
+    writeDb(db);
+
+    addActivityLog(
+      superAdminId,
+      superAdminUser?.name || 'Super Admin',
+      superAdminUser?.email || 'superadmin',
+      'STATUS_CHANGE',
+      `Role of ${target.name} (${target.email}) changed from ${oldRole} → ${role}`,
+      req
+    );
+
+    const { passwordHash: _, ...safeUser } = target;
+    res.json({ user: safeUser, message: `Role updated to ${role}` });
   });
 
   // ==========================================
@@ -525,9 +582,8 @@ async function startServer() {
   app.get('/api/transactions', (req, res) => {
     const userId = req.headers['x-user-id'] as string;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized user' });
+      return res.status(401).json({ error: 'Unauthorized' });
     }
-
     const db = readDb();
     const userTx = db.transactions.filter(t => t.userId === userId && !t.isDeleted);
     res.json({ transactions: userTx });
@@ -537,7 +593,7 @@ async function startServer() {
   app.post('/api/transactions', (req, res) => {
     const userId = req.headers['x-user-id'] as string;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized user' });
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const { type, amount, category, date, paymentMethod, note, tags, id } = req.body;
@@ -582,7 +638,7 @@ async function startServer() {
     const userId = req.headers['x-user-id'] as string;
     const { id } = req.params;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized user' });
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const db = readDb();
@@ -628,7 +684,7 @@ async function startServer() {
     const userId = req.headers['x-user-id'] as string;
     const { id } = req.params;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized user' });
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const db = readDb();
@@ -653,11 +709,11 @@ async function startServer() {
     res.json({ message: 'Transaction deleted successfully' });
   });
 
-  // BATCH SYNC ENDPOINT (Core Offline -> Cloud sync requirement)
+  // BATCH SYNC ENDPOINT (Offline → Cloud sync)
   app.post('/api/sync/batch', (req, res) => {
     const userId = req.headers['x-user-id'] as string;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized user' });
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const { queue, clientTransactions } = req.body as {
@@ -668,7 +724,6 @@ async function startServer() {
     const db = readDb();
     let appliedChanges = 0;
 
-    // Apply queue actions
     if (Array.isArray(queue) && queue.length > 0) {
       for (const item of queue) {
         const tx = item.transaction;
@@ -677,34 +732,17 @@ async function startServer() {
         if (item.action === 'create') {
           const exists = db.transactions.some(t => t.id === tx.id);
           if (!exists) {
-            db.transactions.unshift({
-              ...tx,
-              userId,
-              syncStatus: 'synced',
-              updatedAt: new Date().toISOString()
-            });
+            db.transactions.unshift({ ...tx, userId, syncStatus: 'synced', updatedAt: new Date().toISOString() });
             appliedChanges++;
           }
         } else if (item.action === 'update') {
           const idx = db.transactions.findIndex(t => t.id === tx.id && t.userId === userId);
           if (idx !== -1) {
-            db.transactions[idx] = {
-              ...tx,
-              userId,
-              syncStatus: 'synced',
-              updatedAt: new Date().toISOString()
-            };
-            appliedChanges++;
+            db.transactions[idx] = { ...tx, userId, syncStatus: 'synced', updatedAt: new Date().toISOString() };
           } else {
-            // If doesn't exist, create it
-            db.transactions.unshift({
-              ...tx,
-              userId,
-              syncStatus: 'synced',
-              updatedAt: new Date().toISOString()
-            });
-            appliedChanges++;
+            db.transactions.unshift({ ...tx, userId, syncStatus: 'synced', updatedAt: new Date().toISOString() });
           }
+          appliedChanges++;
         } else if (item.action === 'delete') {
           db.transactions = db.transactions.filter(t => !(t.id === tx.id && t.userId === userId));
           appliedChanges++;
@@ -712,7 +750,6 @@ async function startServer() {
       }
     }
 
-    // Double check any clientTransactions that may be missing on server
     if (Array.isArray(clientTransactions)) {
       for (const clientTx of clientTransactions) {
         if (!clientTx.id) continue;
@@ -722,7 +759,7 @@ async function startServer() {
             ...clientTx,
             userId,
             syncStatus: 'synced',
-            updatedAt: clientTx.updatedAt || new Date().toISOString()
+            updatedAt: clientTx.updatedAt || new Date().toISOString(),
           });
           appliedChanges++;
         }
@@ -743,15 +780,13 @@ async function startServer() {
       );
     }
 
-    // Return unified transactions for this user
     const serverTransactions = db.transactions.filter(t => t.userId === userId && !t.isDeleted);
-
     res.json({
       status: 'success',
       appliedChanges,
       serverTransactions,
       syncedAt: new Date().toISOString(),
-      message: `Sync completed: ${appliedChanges} modifications applied.`
+      message: `Sync completed: ${appliedChanges} modifications applied.`,
     });
   });
 
@@ -767,13 +802,14 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Income & Expense PWA Server listening on http://0.0.0.0:${PORT}`);
+    console.log(`\n🚀 Income & Expense PWA Server running at http://0.0.0.0:${PORT}`);
+    console.log(`   Seeded accounts: ${SEED_SUPER_ADMIN_EMAIL} (super_admin) | ${SEED_ADMIN_EMAIL} (admin)`);
   });
 }
 

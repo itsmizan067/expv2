@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ShieldCheck, 
-  UserCheck, 
-  UserX, 
-  Trash2, 
-  Clock, 
-  Activity, 
-  Calendar, 
-  Smartphone, 
-  Search, 
-  RefreshCw, 
-  CheckCircle2, 
+import {
+  ShieldCheck,
+  UserCheck,
+  UserX,
+  Trash2,
+  Clock,
+  Activity,
+  Calendar,
+  Smartphone,
+  Search,
+  RefreshCw,
+  CheckCircle2,
   AlertCircle,
   XCircle,
   Database,
@@ -18,11 +18,11 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { User, ActivityLog, AccountStatus } from '../types';
-import { 
-  getAdminUsers, 
-  updateAdminUserStatus, 
-  deleteAdminUser, 
-  getAdminActivityLogs 
+import {
+  getAdminUsers,
+  updateAdminUserStatus,
+  deleteAdminUser,
+  getAdminActivityLogs
 } from '../lib/api';
 
 interface AdminPanelProps {
@@ -36,7 +36,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string>('');
-  
+
   // Filters
   const [userSearch, setUserSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | AccountStatus>('all');
@@ -122,7 +122,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
 
   return (
     <div className="space-y-6">
-      
+
       {/* Admin Notice Banner */}
       <div className="bg-indigo-950/80 border border-indigo-800/80 p-5 rounded-2xl text-white shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -156,11 +156,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
           <button
             id="admin-tab-users-btn"
             onClick={() => setActiveTab('users')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
-              activeTab === 'users'
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${activeTab === 'users'
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'text-indigo-200 hover:text-white hover:bg-indigo-900/60'
-            }`}
+              }`}
           >
             <Users className="w-4 h-4" />
             <span>User Accounts ({users.length})</span>
@@ -174,11 +173,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
           <button
             id="admin-tab-logs-btn"
             onClick={() => setActiveTab('logs')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
-              activeTab === 'logs'
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${activeTab === 'logs'
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'text-indigo-200 hover:text-white hover:bg-indigo-900/60'
-            }`}
+              }`}
           >
             <Activity className="w-4 h-4" />
             <span>Audit Activity Logs ({logs.length})</span>
@@ -204,7 +202,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
       {/* TAB 1: USERS MANAGEMENT */}
       {activeTab === 'users' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          
+
           {/* Filter Bar */}
           <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="relative flex-1 max-w-xs">
@@ -222,33 +220,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
             <div className="flex items-center space-x-1.5 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
               <button
                 onClick={() => setStatusFilter('all')}
-                className={`px-2.5 py-1 rounded-lg transition ${
-                  statusFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-2.5 py-1 rounded-lg transition ${statusFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 All ({users.length})
               </button>
               <button
                 onClick={() => setStatusFilter('pending')}
-                className={`px-2.5 py-1 rounded-lg transition ${
-                  statusFilter === 'pending' ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-2.5 py-1 rounded-lg transition ${statusFilter === 'pending' ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 Pending ({pendingCount})
               </button>
               <button
                 onClick={() => setStatusFilter('active')}
-                className={`px-2.5 py-1 rounded-lg transition ${
-                  statusFilter === 'active' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-2.5 py-1 rounded-lg transition ${statusFilter === 'active' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 Active
               </button>
               <button
                 onClick={() => setStatusFilter('disabled')}
-                className={`px-2.5 py-1 rounded-lg transition ${
-                  statusFilter === 'disabled' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-2.5 py-1 rounded-lg transition ${statusFilter === 'disabled' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 Disabled
               </button>
@@ -274,7 +268,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
 
                   return (
                     <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
-                      
+
                       {/* Name & Email */}
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-900 text-sm">{u.name}</div>
@@ -283,9 +277,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
 
                       {/* Role */}
                       <td className="py-3 px-4">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                          u.role === 'admin' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-700'
-                        }`}>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-700'
+                          }`}>
                           {u.role}
                         </span>
                       </td>
@@ -336,7 +329,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
                           <span className="text-[11px] text-slate-400 italic">Current Session</span>
                         ) : (
                           <div className="flex items-center justify-end space-x-1.5">
-                            
+
                             {/* Approve Button for pending */}
                             {u.status === 'pending' && (
                               <button
@@ -446,17 +439,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
               filteredLogs.map(log => (
                 <div key={log.id} className="p-3.5 hover:bg-slate-50 transition-colors flex items-start justify-between gap-3 text-xs">
                   <div className="flex items-start space-x-3">
-                    <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
-                      log.action === 'LOGIN'
+                    <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${log.action === 'LOGIN'
                         ? 'bg-blue-50 text-blue-600'
                         : log.action === 'OFFLINE_SYNC'
-                        ? 'bg-emerald-50 text-emerald-600'
-                        : log.action === 'STATUS_CHANGE'
-                        ? 'bg-amber-50 text-amber-600'
-                        : log.action === 'ACCOUNT_DELETE'
-                        ? 'bg-rose-50 text-rose-600'
-                        : 'bg-slate-100 text-slate-600'
-                    }`}>
+                          ? 'bg-emerald-50 text-emerald-600'
+                          : log.action === 'STATUS_CHANGE'
+                            ? 'bg-amber-50 text-amber-600'
+                            : log.action === 'ACCOUNT_DELETE'
+                              ? 'bg-rose-50 text-rose-600'
+                              : 'bg-slate-100 text-slate-600'
+                      }`}>
                       <Activity className="w-4 h-4" />
                     </div>
 

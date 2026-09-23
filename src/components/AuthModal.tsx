@@ -4,12 +4,10 @@ import {
   Lock, 
   Mail, 
   User as UserIcon, 
-  ShieldCheck, 
   ArrowRight, 
-  CheckCircle2, 
   Clock, 
-  Sparkles,
-  AlertCircle
+  AlertCircle,
+  Wallet,
 } from 'lucide-react';
 import { User } from '../types';
 import { loginUser, registerUser } from '../lib/api';
@@ -18,10 +16,12 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (user: User) => void;
+  /** Optional: open directly in a specific mode. Defaults to 'login'. */
+  initialMode?: 'login' | 'register';
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, initialMode = 'login' }) => {
+  const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,6 +31,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   const [pendingMessage, setPendingMessage] = useState('');
 
   if (!isOpen) return null;
+
+  const resetForm = () => {
+    setName('');
+    setEmail('');
+    setPassword('');
+    setCurrency('USD');
+    setError('');
+    setPendingMessage('');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,218 +62,210 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
         if (result.user.status === 'pending') {
           setPendingMessage(
-            'Account registration successful! An administrator must approve your account before you can log in.'
+            'Account registered successfully! An administrator must approve your account before you can log in.'
           );
           setMode('login');
+          resetForm();
         } else {
-          // Admin or auto-active
           const loginRes = await loginUser(email, password);
           onSuccess(loginRes.user);
           onClose();
         }
       }
     } catch (err: any) {
-      setError(err.message || 'Authentication failed. Please check credentials.');
+      setError(err.message || 'Authentication failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Quick Demo Logins for easy testing
-  const handleQuickLogin = async (demoEmail: string, demoPass: string) => {
-    setLoading(true);
+  const switchMode = (next: 'login' | 'register') => {
+    setMode(next);
     setError('');
     setPendingMessage('');
-    try {
-      const result = await loginUser(demoEmail, demoPass);
-      onSuccess(result.user);
-      onClose();
-    } catch (err: any) {
-      setError(err.message || 'Quick login failed');
-    } finally {
-      setLoading(false);
-    }
   };
 
+  const currencies = ['USD', 'EUR', 'GBP', 'BDT', 'INR', 'CAD', 'AUD', 'SGD', 'JPY'];
+
   return (
-    <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-200">
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
         
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-          <div>
-            <h3 className="text-lg font-bold text-slate-900">
-              {mode === 'login' ? 'Sign In to Account' : 'Create New Account'}
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Personal Income &amp; Expense Management PWA
-            </p>
-          </div>
-          <button
-            id="close-auth-modal-btn"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        {/* Coloured top bar */}
+        <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 to-teal-500" />
 
-        {/* Demo Accounts Quick-Select Pill Box */}
-        <div className="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-2xl">
-          <div className="flex items-center space-x-1.5 text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>Instant Test Accounts:</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              id="quick-login-user-btn"
-              onClick={() => handleQuickLogin('user@finance.app', 'user123')}
-              className="p-2 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-xl text-left transition shadow-2xs group"
-            >
-              <div className="text-xs font-bold text-slate-900 group-hover:text-emerald-700 flex items-center justify-between">
-                <span>Standard User</span>
-                <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1 rounded">Active</span>
+        <div className="p-6 sm:p-8">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-3">
+              <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md">
+                <Wallet className="w-4.5 h-4.5 text-white" />
               </div>
-              <div className="text-[10px] text-slate-500 truncate mt-0.5">user@finance.app</div>
-            </button>
-
-            <button
-              type="button"
-              id="quick-login-admin-btn"
-              onClick={() => handleQuickLogin('admin@finance.app', 'admin123')}
-              className="p-2 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 rounded-xl text-left transition shadow-2xs group"
-            >
-              <div className="text-xs font-bold text-slate-900 group-hover:text-indigo-700 flex items-center justify-between">
-                <span>Admin Role</span>
-                <span className="text-[10px] text-indigo-600 bg-indigo-50 px-1 rounded">Admin</span>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 leading-tight">
+                  {mode === 'login' ? 'Welcome Back' : 'Create Account'}
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Personal Income &amp; Expense Management
+                </p>
               </div>
-              <div className="text-[10px] text-slate-500 truncate mt-0.5">admin@finance.app</div>
+            </div>
+            <button
+              id="close-auth-modal-btn"
+              onClick={onClose}
+              className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+            >
+              <X className="w-5 h-5" />
             </button>
           </div>
-        </div>
 
-        {/* Messages */}
-        {pendingMessage && (
-          <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 font-medium flex items-start space-x-2">
-            <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <span>{pendingMessage}</span>
-          </div>
-        )}
+          {/* Pending approval notice */}
+          {pendingMessage && (
+            <div className="mb-4 p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 font-medium flex items-start space-x-2.5">
+              <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>{pendingMessage}</span>
+            </div>
+          )}
 
-        {error && (
-          <div className="mt-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium flex items-start space-x-2">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            <span>{error}</span>
-          </div>
-        )}
+          {/* Error */}
+          {error && (
+            <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-700 font-medium flex items-start space-x-2.5">
+              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="mt-4 space-y-3.5">
-          
-          {mode === 'register' && (
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+
+            {/* Full name (register only) */}
+            {mode === 'register' && (
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <UserIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    id="auth-name-input"
+                    type="text"
+                    placeholder="e.g. John Doe"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    required
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 transition"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Email */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Full Name
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                Email Address
               </label>
               <div className="relative">
-                <UserIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
-                  id="auth-name-input"
-                  type="text"
-                  placeholder="e.g. John Doe"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
+                  id="auth-email-input"
+                  type="email"
+                  placeholder="name@domain.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
                   required
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 transition"
                 />
               </div>
             </div>
-          )}
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Email Address
-            </label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                id="auth-email-input"
-                type="email"
-                placeholder="name@domain.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              />
+            {/* Password */}
+            <div>
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  id="auth-password-input"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  minLength={mode === 'register' ? 6 : 1}
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 transition"
+                />
+              </div>
+              {mode === 'register' && (
+                <p className="text-[11px] text-slate-400 mt-1 ml-1">Minimum 6 characters.</p>
+              )}
             </div>
+
+            {/* Currency (register only) */}
+            {mode === 'register' && (
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                  Default Currency
+                </label>
+                <select
+                  id="auth-currency-select"
+                  value={currency}
+                  onChange={e => setCurrency(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 transition"
+                >
+                  {currencies.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              id="auth-submit-btn"
+              disabled={loading}
+              className="w-full mt-2 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-emerald-900/20 flex items-center justify-center space-x-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <span>
+                {loading
+                  ? 'Please wait…'
+                  : mode === 'login'
+                  ? 'Sign In'
+                  : 'Create Account'}
+              </span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </form>
+
+          {/* Mode Switch */}
+          <div className="mt-5 pt-4 border-t border-slate-100 text-center">
+            {mode === 'login' ? (
+              <p className="text-xs text-slate-500">
+                Don&apos;t have an account?{' '}
+                <button
+                  type="button"
+                  id="switch-to-register-btn"
+                  onClick={() => switchMode('register')}
+                  className="font-bold text-emerald-600 hover:underline"
+                >
+                  Sign Up — It&apos;s Free
+                </button>
+              </p>
+            ) : (
+              <p className="text-xs text-slate-500">
+                Already have an account?{' '}
+                <button
+                  type="button"
+                  id="switch-to-login-btn"
+                  onClick={() => switchMode('login')}
+                  className="font-bold text-emerald-600 hover:underline"
+                >
+                  Sign In
+                </button>
+              </p>
+            )}
           </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Password
-            </label>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                id="auth-password-input"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            id="auth-submit-btn"
-            disabled={loading}
-            className="w-full py-2.5 mt-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center justify-center space-x-1.5 disabled:opacity-50"
-          >
-            <span>{loading ? 'Processing...' : mode === 'login' ? 'Sign In' : 'Register Account'}</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
-
-        </form>
-
-        {/* Mode Switch */}
-        <div className="mt-4 pt-3 border-t border-slate-100 text-center">
-          {mode === 'login' ? (
-            <p className="text-xs text-slate-600">
-              Don&apos;t have an account yet?{' '}
-              <button
-                type="button"
-                id="switch-to-register-btn"
-                onClick={() => {
-                  setMode('register');
-                  setError('');
-                }}
-                className="font-bold text-emerald-600 hover:underline"
-              >
-                Register Here
-              </button>
-            </p>
-          ) : (
-            <p className="text-xs text-slate-600">
-              Already registered?{' '}
-              <button
-                type="button"
-                id="switch-to-login-btn"
-                onClick={() => {
-                  setMode('login');
-                  setError('');
-                }}
-                className="font-bold text-emerald-600 hover:underline"
-              >
-                Sign In
-              </button>
-            </p>
-          )}
         </div>
-
       </div>
     </div>
   );

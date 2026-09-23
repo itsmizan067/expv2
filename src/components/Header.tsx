@@ -10,7 +10,9 @@ import {
   Sliders, 
   FileSpreadsheet,
   Wallet,
-  RefreshCw
+  RefreshCw,
+  UserPlus,
+  LogIn,
 } from 'lucide-react';
 import { User as UserType } from '../types';
 
@@ -23,6 +25,7 @@ interface HeaderProps {
   onOpenBudget: () => void;
   onOpenExport: () => void;
   onOpenAuth: () => void;
+  onSignUp: () => void;
   onLogout: () => void;
   onInstallClick: () => void;
   canInstall: boolean;
@@ -40,6 +43,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenBudget,
   onOpenExport,
   onOpenAuth,
+  onSignUp,
   onLogout,
   onInstallClick,
   canInstall,
@@ -236,14 +240,24 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
               </div>
             ) : (
-              <button
-                id="header-signin-btn"
-                onClick={onOpenAuth}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow-sm"
-              >
-                <User className="w-3.5 h-3.5" />
-                <span>Sign In</span>
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  id="header-signup-btn"
+                  onClick={onSignUp}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow-sm"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Sign Up</span>
+                </button>
+                <button
+                  id="header-signin-btn"
+                  onClick={onOpenAuth}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Sign In</span>
+                </button>
+              </div>
             )}
 
           </div>
