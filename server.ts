@@ -801,8 +801,21 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
+
+    // Serve static assets with proper caching and MIME types
+    app.use(express.static(distPath, {
+      maxAge: '1y',
+      immutable: true,
+    }));
+
+    // SPA fallback: only for non-file, non-API routes
+    // This prevents returning index.html for .js/.css/.wasm requests
+    app.get('*', (req, res) => {
+      const ext = path.extname(req.path);
+      if (ext && ext !== '.html') {
+        // A file extension was requested but not found — return 404, not index.html
+        return res.status(404).send('Not found');
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
