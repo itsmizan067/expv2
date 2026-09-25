@@ -14,11 +14,14 @@ import { AdminPanel } from './components/AdminPanel';
 import { AuthModal } from './components/AuthModal';
 import { ExportImportModal } from './components/ExportImportModal';
 import { LandingPage } from './components/LandingPage';
+import { SubscriptionWall } from './components/SubscriptionWall';
+import { MonthlyReport } from './components/MonthlyReport';
 import {
   Plus,
   BarChart3,
   ListOrdered,
   LayoutDashboard,
+  FileText,
 } from 'lucide-react';
 
 export default function App() {
@@ -29,7 +32,11 @@ export default function App() {
   });
 
   // Navigation Tabs
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'transactions' | 'analytics' | 'admin'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'transactions' | 'analytics' | 'admin' | 'report'>('dashboard');
+
+  // Subscription wall state
+  const [showSubWall, setShowSubWall] = useState(false);
+  const [pendingPayment, setPendingPayment] = useState<any>(null);
 
   // Network & Sync State
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
@@ -164,6 +171,14 @@ export default function App() {
     setStoredUser(user);
     const userIsAdmin = user.role === 'admin' || user.role === 'super_admin';
     setActiveTab(userIsAdmin ? 'admin' : 'dashboard');
+    // Check subscription for regular users
+    if (!userIsAdmin) {
+      const trialActive = user.plan === 'trial' && user.trialEndsAt && new Date() < new Date(user.trialEndsAt);
+      const planActive = (user.plan === 'standard' || user.plan === 'premium') && user.planStatus === 'active' && user.planExpiresAt && new Date() < new Date(user.planExpiresAt);
+      if (!trialActive && !planActive) {
+        setShowSubWall(true);
+      }
+    }
     setTimeout(() => {
       refreshLocalData();
       if (navigator.onLine && !userIsAdmin) {
@@ -178,6 +193,8 @@ export default function App() {
     setTransactions([]);
     setPendingCount(0);
     setActiveTab('dashboard');
+    setShowSubWall(false);
+    setPendingPayment(null);
   };
 
   // ─── Transaction CRUD (Offline-First) ─────────────────────────────────────
@@ -337,6 +354,18 @@ export default function App() {
   }
 
   // ─── Authenticated App Shell ───────────────────────────────────────────────
+
+  // Show subscription wall for expired/no plan users
+  if (showSubWall && currentUser && currentUser.role === 'user') {
+    return (
+      <SubscriptionWall
+        user={currentUser}
+        pendingPayment={pendingPayment}
+        onSubscriptionSuccess={() => setShowSubWall(false)}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
 
@@ -456,6 +485,13 @@ export default function App() {
               />
             )}
 
+            {activeTab === 'report' && (
+              <MonthlyReport
+                transactions={transactions}
+                user={currentUser}
+                currency={currentUser.currency || 'USD'}
+              />
+            )}
           </div>
         )}
       </main>
@@ -509,6 +545,17 @@ export default function App() {
           >
             <BarChart3 className="w-5 h-5" />
             <span className="mt-0.5">Analytics</span>
+          </button>
+
+          <button
+            id="mobile-nav-report"
+            onClick={() => setActiveTab('report')}
+            className={`flex flex-col items-center py-1 px-3 text-[11px] font-semibold transition ${
+              activeTab === 'report' ? 'text-amber-400' : 'text-slate-400'
+            }`}
+          >
+            <FileText className="w-5 h-5" />
+            <span className="mt-0.5">Report</span>
           </button>
         </nav>
       )}

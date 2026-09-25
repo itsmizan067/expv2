@@ -1,4 +1,4 @@
-import { User, ActivityLog, Transaction, AccountStatus } from '../types';
+import { User, ActivityLog, Transaction, AccountStatus, PaymentRequest } from '../types';
 
 export const API_BASE = '/api';
 
@@ -128,4 +128,62 @@ export async function getAdminActivityLogs(adminId: string, filters?: { userId?:
     throw new Error(data.error || 'Failed to fetch activity logs');
   }
   return data.logs;
+}
+
+// Subscription APIs
+export async function getSubscriptionStatus(userId: string): Promise<{
+  user: User;
+  subscriptionActive: boolean;
+  pendingPayment: PaymentRequest | null;
+}> {
+  const res = await fetch(`${API_BASE}/subscription/status`, {
+    headers: { 'x-user-id': userId },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to get subscription status');
+  return data;
+}
+
+export async function submitPaymentRequest(
+  userId: string,
+  payload: { plan: 'standard' | 'premium'; bkashTransactionId: string; screenshotUrl?: string }
+): Promise<{ paymentRequest: PaymentRequest; message: string }> {
+  const res = await fetch(`${API_BASE}/subscription/payment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to submit payment');
+  return data;
+}
+
+export async function getAdminPayments(adminId: string): Promise<PaymentRequest[]> {
+  const res = await fetch(`${API_BASE}/admin/payments`, {
+    headers: { 'x-user-id': adminId },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to load payments');
+  return data.paymentRequests;
+}
+
+export async function approvePayment(adminId: string, paymentId: string): Promise<PaymentRequest> {
+  const res = await fetch(`${API_BASE}/admin/payments/${paymentId}/approve`, {
+    method: 'POST',
+    headers: { 'x-user-id': adminId },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to approve payment');
+  return data.paymentRequest;
+}
+
+export async function rejectPayment(adminId: string, paymentId: string, reason?: string): Promise<PaymentRequest> {
+  const res = await fetch(`${API_BASE}/admin/payments/${paymentId}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-user-id': adminId },
+    body: JSON.stringify({ reason }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to reject payment');
+  return data.paymentRequest;
 }

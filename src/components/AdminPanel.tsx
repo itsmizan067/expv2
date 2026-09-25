@@ -15,14 +15,23 @@ import {
   XCircle,
   Database,
   Users,
-  ShieldAlert
+  ShieldAlert,
+  Crown,
+  CreditCard,
+  Banknote,
+  ImageIcon,
+  ThumbsUp,
+  ThumbsDown,
 } from 'lucide-react';
-import { User, ActivityLog, AccountStatus } from '../types';
+import { User, ActivityLog, AccountStatus, PaymentRequest } from '../types';
 import {
   getAdminUsers,
   updateAdminUserStatus,
   deleteAdminUser,
-  getAdminActivityLogs
+  getAdminActivityLogs,
+  getAdminPayments,
+  approvePayment,
+  rejectPayment,
 } from '../lib/api';
 
 interface AdminPanelProps {
@@ -30,9 +39,10 @@ interface AdminPanelProps {
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
-  const [activeTab, setActiveTab] = useState<'users' | 'logs'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'logs' | 'payments'>('users');
   const [users, setUsers] = useState<Array<User & { transactionCount: number }>>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [payments, setPayments] = useState<PaymentRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string>('');
@@ -47,12 +57,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
     setLoading(true);
     setError('');
     try {
-      const [usersData, logsData] = await Promise.all([
+      const [usersData, logsData, paymentsData] = await Promise.all([
         getAdminUsers(adminUser.id),
         getAdminActivityLogs(adminUser.id),
+        getAdminPayments(adminUser.id),
       ]);
       setUsers(usersData);
       setLogs(logsData);
+      setPayments(paymentsData);
     } catch (err: any) {
       setError(err.message || 'Failed to load admin data');
     } finally {
@@ -84,6 +96,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
       fetchData();
     } catch (err: any) {
       setError(err.message || 'Failed to delete user');
+    }
+  };
+
+  const handleApprovePayment = async (paymentId: string) => {
+    try {
+      await approvePayment(adminUser.id, paymentId);
+      setSuccessMessage('Payment approved — user plan activated!');
+      setTimeout(() => setSuccessMessage(''), 4000);
+      fetchData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to approve payment');
+    }
+  };
+
+  const [rejectId, setRejectId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const handleRejectPayment = async (paymentId: string) => {
+    try {
+      await rejectPayment(adminUser.id, paymentId, rejectReason || undefined);
+      setSuccessMessage('Payment request rejected.');
+      setRejectId(null);
+      setRejectReason('');
+      setTimeout(() => setSuccessMessage(''), 3000);
+      fetchData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to reject payment');
     }
   };
 
@@ -119,6 +158,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
   });
 
   const pendingCount = users.filter(u => u.status === 'pending').length;
+  const pendingPayments = payments.filter(p => p.status === 'pending').length;
 
   return (
     <div className="space-y-6">
@@ -166,6 +206,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
             {pendingCount > 0 && (
               <span className="ml-1 px-1.5 py-0.2 bg-amber-400 text-slate-950 font-extrabold rounded-full text-[10px]">
                 {pendingCount} Pending
+              </span>
+            )}
+          </button>
+
+          <button
+            id="admin-tab-payments-btn"
+            onClick={() => setActiveTab('payments')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${activeTab === 'payments'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-indigo-200 hover:text-white hover:bg-indigo-900/60'
+              }`}
+          >
+            <CreditCard className="w-4 h-4" />
+            <span>Payments ({payments.length})</span>
+            {pendingPayments > 0 && (
+              <span className="ml-1 px-1.5 py-0.2 bg-emerald-400 text-slate-950 font-extrabold rounded-full text-[10px]">
+                {pendingPayments} New
               </span>
             )}
           </button>
@@ -403,7 +460,119 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
         </div>
       )}
 
-      {/* TAB 2: AUDIT ACTIVITY LOGS */}
+      {/* TAB 2: PAYMENTS */}
+      {activeTab === 'payments' && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          <div className="p-4 border-b border-slate-100">
+            <h3 className="text-sm font-bold text-slate-900">bKash Payment Requests</h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Review and approve/reject user subscription payments sent via bKash.
+            </p>
+          </div>
+
+          {payments.length === 0 ? (
+            <div className="p-10 text-center text-slate-400 text-xs">No payment requests yet.</div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {payments.map(pay => (
+                <div key={pay.id} className="p-4 hover:bg-slate-50 transition-colors">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                    <div className="flex items-start space-x-3">
+                      <div className={`p-2 rounded-xl shrink-0 ${
+                        pay.status === 'pending' ? 'bg-amber-50 text-amber-600' :
+                        pay.status === 'approved' ? 'bg-emerald-50 text-emerald-600' :
+                        'bg-rose-50 text-rose-600'
+                      }`}>
+                        <CreditCard className="w-4 h-4" />
+                      </div>
+                      <div className="text-xs">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <strong className="text-slate-900 font-bold">{pay.userName}</strong>
+                          <span className="text-slate-500">({pay.userEmail})</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            pay.plan === 'premium'
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              : 'bg-sky-50 text-sky-700 border border-sky-200'
+                          }`}>
+                            {pay.plan === 'premium' ? '★ ' : ''}{pay.plan}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            pay.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                            pay.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
+                            'bg-rose-100 text-rose-700'
+                          }`}>{pay.status}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-slate-600">
+                          <span>Amount: <strong className="text-emerald-600">৳{pay.amount}</strong></span>
+                          <span>bKash TX: <strong className="text-slate-900 font-mono">{pay.bkashTransactionId}</strong></span>
+                          <span>Submitted: {formatDate(pay.submittedAt)}</span>
+                          {pay.reviewedAt && <span>Reviewed: {formatDate(pay.reviewedAt)} by {pay.reviewedBy}</span>}
+                          {pay.rejectionReason && <span className="text-rose-600">Reason: {pay.rejectionReason}</span>}
+                        </div>
+                        {pay.screenshotUrl && (
+                          <div className="mt-2">
+                            <a href={pay.screenshotUrl} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center space-x-1 text-indigo-600 hover:text-indigo-700 font-semibold text-[11px]">
+                              <ImageIcon className="w-3.5 h-3.5" /><span>View Screenshot</span>
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    {pay.status === 'pending' && (
+                      <div className="flex items-start flex-col gap-2 shrink-0">
+                        {rejectId === pay.id ? (
+                          <div className="flex flex-col gap-1.5 bg-rose-50 border border-rose-200 p-2 rounded-xl w-56">
+                            <input
+                              type="text"
+                              placeholder="Rejection reason (optional)"
+                              value={rejectReason}
+                              onChange={e => setRejectReason(e.target.value)}
+                              className="px-2 py-1 text-xs border border-rose-200 rounded-lg focus:outline-none w-full"
+                            />
+                            <div className="flex space-x-1">
+                              <button onClick={() => handleRejectPayment(pay.id)}
+                                className="flex-1 px-2 py-1 bg-rose-600 text-white text-[11px] font-bold rounded-lg">
+                                Confirm Reject
+                              </button>
+                              <button onClick={() => { setRejectId(null); setRejectReason(''); }}
+                                className="px-2 py-1 text-slate-500 text-[11px] rounded-lg hover:bg-slate-100">
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center space-x-1.5">
+                            <button
+                              id={`admin-approve-pay-${pay.id}`}
+                              onClick={() => handleApprovePayment(pay.id)}
+                              className="flex items-center space-x-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow-sm"
+                            >
+                              <ThumbsUp className="w-3.5 h-3.5" /><span>Approve</span>
+                            </button>
+                            <button
+                              id={`admin-reject-pay-${pay.id}`}
+                              onClick={() => setRejectId(pay.id)}
+                              className="flex items-center space-x-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition"
+                            >
+                              <ThumbsDown className="w-3.5 h-3.5" /><span>Reject</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: AUDIT ACTIVITY LOGS */}
+
       {activeTab === 'logs' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

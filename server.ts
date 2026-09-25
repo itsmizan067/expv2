@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
-import { User, ActivityLog, Transaction, SyncQueueItem, UserRole, AccountStatus } from './src/types';
+import { User, ActivityLog, Transaction, SyncQueueItem, UserRole, AccountStatus, PaymentRequest } from './src/types';
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 
@@ -54,6 +54,33 @@ interface DatabaseSchema {
   users: Array<User & { passwordHash?: string }>;
   transactions: Transaction[];
   logs: ActivityLog[];
+  paymentRequests: PaymentRequest[];
+}
+
+// ==========================================
+// SUBSCRIPTION HELPERS
+// ==========================================
+
+/** 7-day trial end ISO string from now */
+function trialEndDate(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 7);
+  return d.toISOString();
+}
+
+/** Plan expiry: 30 days from now */
+function planExpiryDate(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 30);
+  return d.toISOString();
+}
+
+/** Check if a user's subscription allows access */
+function isSubscriptionActive(user: User): boolean {
+  if (user.role === 'admin' || user.role === 'super_admin') return true;
+  if (user.plan === 'trial' && user.trialEndsAt && new Date() < new Date(user.trialEndsAt)) return true;
+  if ((user.plan === 'standard' || user.plan === 'premium') && user.planStatus === 'active' && user.planExpiresAt && new Date() < new Date(user.planExpiresAt)) return true;
+  return false;
 }
 
 // Seeded admin accounts — passwords are hashed at runtime so the seed is
@@ -107,12 +134,19 @@ function buildInitialDb(): DatabaseSchema {
         timestamp: new Date().toISOString(),
       },
     ],
+    paymentRequests: [],
   };
 }
 
 // ==========================================
 // DB READ / WRITE
 // ==========================================
+
+// Migrate DB to ensure paymentRequests array always exists
+function migrateDb(db: any): DatabaseSchema {
+  if (!db.paymentRequests) db.paymentRequests = [];
+  return db as DatabaseSchema;
+}
 
 function readDb(): DatabaseSchema {
   try {
@@ -122,7 +156,7 @@ function readDb(): DatabaseSchema {
       return fresh;
     }
     const data = fs.readFileSync(DB_FILE, 'utf-8');
-    const parsed: DatabaseSchema = JSON.parse(data);
+    const parsed: DatabaseSchema = migrateDb(JSON.parse(data));
 
     // Migration: ensure seeded admin accounts always exist.
     // If the DB was created before the new seed, insert them now.
@@ -295,6 +329,7 @@ async function startServer() {
     // Only seeded admin accounts can have elevated roles.
     const role: UserRole = 'user';
     const status: AccountStatus = 'pending';
+    const trialEnd = trialEndDate();
 
     const newUser: User & { passwordHash: string } = {
       id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -309,6 +344,9 @@ async function startServer() {
       totalLogins: 0,
       currency: currency || 'USD',
       monthlyBudgetLimit: Number(monthlyBudgetLimit) || 3000,
+      plan: 'trial',
+      planStatus: 'active',
+      trialEndsAt: trialEnd,
     };
 
     db.users.push(newUser);
@@ -796,6 +834,117 @@ async function startServer() {
       syncedAt: new Date().toISOString(),
       message: `Sync completed: ${appliedChanges} modifications applied.`,
     });
+  });
+
+  // ==========================================
+  // SUBSCRIPTION & PAYMENT ROUTES
+  // ==========================================
+
+  // Get subscription status for current user
+  app.get('/api/subscription/status', (req, res) => {
+    const userId = req.headers['x-user-id'] as string;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const db = readDb();
+    const user = db.users.find(u => u.id === userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const { passwordHash: _, ...safe } = user;
+    const active = isSubscriptionActive(user);
+    const pendingPayment = db.paymentRequests.find(p => p.userId === userId && p.status === 'pending');
+    res.json({ user: safe, subscriptionActive: active, pendingPayment: pendingPayment || null });
+  });
+
+  // Submit a payment request (user sends bKash txid + screenshot)
+  app.post('/api/subscription/payment', (req, res) => {
+    const userId = req.headers['x-user-id'] as string;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { plan, bkashTransactionId, screenshotUrl } = req.body as {
+      plan: 'standard' | 'premium';
+      bkashTransactionId: string;
+      screenshotUrl?: string;
+    };
+    if (!plan || !bkashTransactionId) {
+      return res.status(400).json({ error: 'Plan and bKash transaction ID are required.' });
+    }
+    if (!['standard', 'premium'].includes(plan)) {
+      return res.status(400).json({ error: 'Invalid plan. Choose standard or premium.' });
+    }
+    const db = readDb();
+    const user = db.users.find(u => u.id === userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const alreadyPending = db.paymentRequests.some(p => p.userId === userId && p.status === 'pending');
+    if (alreadyPending) {
+      return res.status(409).json({ error: 'You already have a pending payment request. Please wait for admin approval.' });
+    }
+    const amount = plan === 'standard' ? 100 : 250;
+    const newRequest: PaymentRequest = {
+      id: `pay-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      userId,
+      userName: user.name,
+      userEmail: user.email,
+      plan,
+      amount,
+      bkashTransactionId: bkashTransactionId.trim(),
+      screenshotUrl: screenshotUrl || undefined,
+      status: 'pending',
+      submittedAt: new Date().toISOString(),
+    };
+    db.paymentRequests.unshift(newRequest);
+    writeDb(db);
+    addActivityLog(userId, user.name, user.email, 'PAYMENT_SUBMIT',
+      `Submitted payment for ${plan} plan (৳${amount}) — bKash TX: ${bkashTransactionId}`, req);
+    res.status(201).json({ paymentRequest: newRequest, message: 'Payment submitted. Admin will review and activate your plan shortly.' });
+  });
+
+  // Admin: list all payment requests
+  app.get('/api/admin/payments', requireAdmin, (_req, res) => {
+    const db = readDb();
+    res.json({ paymentRequests: db.paymentRequests });
+  });
+
+  // Admin: approve a payment
+  app.post('/api/admin/payments/:id/approve', requireAdmin, (req, res) => {
+    const { id } = req.params;
+    const adminUserId = req.headers['x-user-id'] as string;
+    const db = readDb();
+    const adminUser = db.users.find(u => u.id === adminUserId);
+    const idx = db.paymentRequests.findIndex(p => p.id === id);
+    if (idx === -1) return res.status(404).json({ error: 'Payment request not found' });
+    const pr = db.paymentRequests[idx];
+    pr.status = 'approved';
+    pr.reviewedAt = new Date().toISOString();
+    pr.reviewedBy = adminUser?.name || 'Admin';
+    const userIdx = db.users.findIndex(u => u.id === pr.userId);
+    if (userIdx !== -1) {
+      db.users[userIdx].plan = pr.plan;
+      db.users[userIdx].planStatus = 'active';
+      db.users[userIdx].planExpiresAt = planExpiryDate();
+    }
+    db.paymentRequests[idx] = pr;
+    writeDb(db);
+    addActivityLog(adminUserId, adminUser?.name || 'Admin', adminUser?.email || 'admin', 'PAYMENT_APPROVE',
+      `Approved ${pr.plan} plan for ${pr.userName} (${pr.userEmail}) — TX: ${pr.bkashTransactionId}`, req);
+    res.json({ paymentRequest: pr, message: `${pr.plan} plan activated for ${pr.userName}.` });
+  });
+
+  // Admin: reject a payment
+  app.post('/api/admin/payments/:id/reject', requireAdmin, (req, res) => {
+    const { id } = req.params;
+    const adminUserId = req.headers['x-user-id'] as string;
+    const { reason } = req.body as { reason?: string };
+    const db = readDb();
+    const adminUser = db.users.find(u => u.id === adminUserId);
+    const idx = db.paymentRequests.findIndex(p => p.id === id);
+    if (idx === -1) return res.status(404).json({ error: 'Payment request not found' });
+    const pr = db.paymentRequests[idx];
+    pr.status = 'rejected';
+    pr.reviewedAt = new Date().toISOString();
+    pr.reviewedBy = adminUser?.name || 'Admin';
+    pr.rejectionReason = reason || 'Transaction could not be verified.';
+    db.paymentRequests[idx] = pr;
+    writeDb(db);
+    addActivityLog(adminUserId, adminUser?.name || 'Admin', adminUser?.email || 'admin', 'PAYMENT_REJECT',
+      `Rejected ${pr.plan} plan for ${pr.userName} — Reason: ${pr.rejectionReason}`, req);
+    res.json({ paymentRequest: pr, message: 'Payment request rejected.' });
   });
 
   // ==========================================

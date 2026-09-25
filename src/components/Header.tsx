@@ -9,10 +9,12 @@ import {
   LogOut, 
   Sliders, 
   FileSpreadsheet,
-  Wallet,
   RefreshCw,
   UserPlus,
   LogIn,
+  Crown,
+  Star,
+  FileText,
 } from 'lucide-react';
 import { User as UserType } from '../types';
 
@@ -29,8 +31,8 @@ interface HeaderProps {
   onLogout: () => void;
   onInstallClick: () => void;
   canInstall: boolean;
-  activeTab: 'dashboard' | 'transactions' | 'analytics' | 'admin';
-  setActiveTab: (tab: 'dashboard' | 'transactions' | 'analytics' | 'admin') => void;
+  activeTab: 'dashboard' | 'transactions' | 'analytics' | 'admin' | 'report';
+  setActiveTab: (tab: 'dashboard' | 'transactions' | 'analytics' | 'admin' | 'report') => void;
   onManualSync: () => void;
 }
 
@@ -58,13 +60,25 @@ export const Header: React.FC<HeaderProps> = ({
           
           {/* Logo & Title */}
           <div className="flex items-center space-x-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center shadow-lg shadow-emerald-950/40">
-              <Wallet className="w-5 h-5 text-white" />
+            <div className="relative">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-emerald-950/50">
+                <svg viewBox="0 0 32 32" className="w-6 h-6" fill="none">
+                  <ellipse cx="16" cy="24" rx="10" ry="3.5" fill="rgba(255,255,255,0.15)"/>
+                  <ellipse cx="16" cy="19" rx="10" ry="3.5" fill="rgba(255,255,255,0.20)"/>
+                  <ellipse cx="16" cy="14" rx="10" ry="3.5" stroke="white" strokeWidth="1.2" fill="rgba(255,255,255,0.25)"/>
+                  <path d="M6 14v10c0 1.93 4.48 3.5 10 3.5S26 25.93 26 24V14" stroke="white" strokeWidth="1.2" strokeLinecap="round"/>
+                  <path d="M6 19c0 1.93 4.48 3.5 10 3.5S26 20.93 26 19" stroke="white" strokeWidth="1.2" strokeLinecap="round"/>
+                  <path d="M16 10V7M14 9l2-2 2 2" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <div className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-md bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow border border-slate-900">
+                <Star className="w-2.5 h-2.5 text-white fill-white" />
+              </div>
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h1 className="text-base font-bold tracking-tight text-white sm:text-lg leading-tight">
-                  Personal Income & Expense
+                <h1 className="text-base font-black tracking-tight text-white sm:text-lg leading-tight">
+                  Pocket Balance
                 </h1>
                 <span className="hidden sm:inline-flex text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                   PWA
@@ -79,7 +93,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Desktop Navigation Links */}
           {user && (
             <nav className="hidden md:flex items-center space-x-1 bg-slate-800/80 p-1 rounded-lg border border-slate-700/60">
-              {user.role !== 'admin' ? (
+              {user.role !== 'admin' && user.role !== 'super_admin' ? (
                 <>
                   <button
                     id="nav-dashboard-btn"
@@ -113,6 +127,21 @@ export const Header: React.FC<HeaderProps> = ({
                     }`}
                   >
                     Analytics & Budget
+                  </button>
+                  <button
+                    id="nav-report-btn"
+                    onClick={() => setActiveTab('report')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center space-x-1 ${
+                      activeTab === 'report'
+                        ? 'bg-amber-500 text-white shadow-sm'
+                        : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Report</span>
+                    {(user.plan !== 'premium' || user.planStatus !== 'active') && (
+                      <Crown className="w-3 h-3 text-amber-400" />
+                    )}
                   </button>
                 </>
               ) : (
@@ -220,13 +249,22 @@ export const Header: React.FC<HeaderProps> = ({
                     <div className="text-xs font-bold text-slate-200 truncate max-w-[120px]">
                       {user.name}
                     </div>
-                    <div className="text-[10px] text-slate-400 capitalize flex items-center justify-end space-x-1">
-                      {user.role === 'admin' ? (
-                        <span className="text-indigo-400 font-semibold">Administrator</span>
+                  {user.role === 'user' && (
+                    <span className="text-[10px] text-slate-400 capitalize flex items-center justify-end space-x-1">
+                      {user.plan === 'premium' && user.planStatus === 'active' ? (
+                        <span className="text-amber-400 font-semibold flex items-center space-x-1"><Crown className="w-3 h-3" /><span>Premium</span></span>
+                      ) : user.plan === 'standard' && user.planStatus === 'active' ? (
+                        <span className="text-sky-400 font-semibold">Standard</span>
+                      ) : user.plan === 'trial' ? (
+                        <span className="text-emerald-400 font-semibold">Trial</span>
                       ) : (
                         <span>Standard User</span>
                       )}
-                    </div>
+                    </span>
+                  )}
+                  {(user.role === 'admin' || user.role === 'super_admin') && (
+                    <span className="text-[10px] text-indigo-400 font-semibold">Administrator</span>
+                  )}
                   </div>
 
                   <button

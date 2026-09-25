@@ -1,5 +1,7 @@
 export type UserRole = 'super_admin' | 'admin' | 'user';
 export type AccountStatus = 'pending' | 'active' | 'disabled';
+export type SubscriptionPlan = 'trial' | 'standard' | 'premium' | 'expired';
+export type PlanStatus = 'active' | 'expired' | 'pending_payment';
 
 export interface User {
   id: string;
@@ -13,6 +15,27 @@ export interface User {
   totalLogins: number;
   currency?: string;
   monthlyBudgetLimit?: number;
+  // Subscription
+  plan?: SubscriptionPlan;
+  planStatus?: PlanStatus;
+  trialEndsAt?: string;
+  planExpiresAt?: string;
+}
+
+export interface PaymentRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  plan: 'standard' | 'premium';
+  amount: number;
+  bkashTransactionId: string;
+  screenshotUrl?: string; // base64 data URL
+  status: 'pending' | 'approved' | 'rejected';
+  submittedAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  rejectionReason?: string;
 }
 
 export interface ActivityLog {
@@ -20,7 +43,7 @@ export interface ActivityLog {
   userId: string;
   userName: string;
   userEmail: string;
-  action: 'LOGIN' | 'LOGOUT' | 'TRANSACTION_ADD' | 'TRANSACTION_UPDATE' | 'TRANSACTION_DELETE' | 'OFFLINE_SYNC' | 'ACCOUNT_REGISTER' | 'STATUS_CHANGE' | 'ACCOUNT_DELETE';
+  action: 'LOGIN' | 'LOGOUT' | 'TRANSACTION_ADD' | 'TRANSACTION_UPDATE' | 'TRANSACTION_DELETE' | 'OFFLINE_SYNC' | 'ACCOUNT_REGISTER' | 'STATUS_CHANGE' | 'ACCOUNT_DELETE' | 'PAYMENT_SUBMIT' | 'PAYMENT_APPROVE' | 'PAYMENT_REJECT';
   details: string;
   ip?: string;
   device?: string;
