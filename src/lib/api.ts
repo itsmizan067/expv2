@@ -20,6 +20,32 @@ export function setStoredUser(user: User | null): void {
   }
 }
 
+/**
+ * Safely parse JSON from a fetch Response, handling empty bodies and non-JSON responses gracefully.
+ */
+async function safeJson<T = any>(res: Response, fallbackError = 'Request failed'): Promise<T> {
+  const text = await res.text();
+  let data: any = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+  }
+
+  if (!res.ok) {
+    const errorMsg =
+      data?.error ||
+      (res.status === 404
+        ? 'Backend API not reachable. Please make sure the dev server is running (`npm run dev`).'
+        : `${fallbackError} (HTTP ${res.status})`);
+    throw new Error(errorMsg);
+  }
+
+  return (data || {}) as T;
+}
+
 export async function loginUser(email: string, password: string): Promise<{ user: User; token: string }> {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',
@@ -27,11 +53,7 @@ export async function loginUser(email: string, password: string): Promise<{ user
     body: JSON.stringify({ email, password }),
   });
 
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || 'Failed to login');
-  }
-
+  const data = await safeJson<{ user: User; token: string }>(res, 'Failed to login');
   setStoredUser(data.user);
   return data;
 }
@@ -49,12 +71,7 @@ export async function registerUser(payload: {
     body: JSON.stringify(payload),
   });
 
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || 'Failed to register');
-  }
-
-  return data;
+  return await safeJson<{ user: User; message: string }>(res, 'Failed to register');
 }
 
 export async function updateProfile(userId: string, updates: Partial<User>): Promise<User> {
@@ -67,11 +84,7 @@ export async function updateProfile(userId: string, updates: Partial<User>): Pro
     body: JSON.stringify(updates),
   });
 
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || 'Failed to update profile');
-  }
-
+  const data = await safeJson<{ user: User }>(res, 'Failed to update profile');
   setStoredUser(data.user);
   return data.user;
 }
@@ -81,10 +94,7 @@ export async function getAdminUsers(adminId: string): Promise<Array<User & { tra
   const res = await fetch(`${API_BASE}/admin/users`, {
     headers: { 'x-user-id': adminId },
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || 'Failed to load user accounts');
-  }
+  const data = await safeJson<{ users: Array<User & { transactionCount: number }> }>(res, 'Failed to load user accounts');
   return data.users;
 }
 
@@ -97,10 +107,7 @@ export async function updateAdminUserStatus(adminId: string, targetUserId: strin
     },
     body: JSON.stringify({ status }),
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || 'Failed to update account status');
-  }
+  const data = await safeJson<{ user: User }>(res, 'Failed to update account status');
   return data.user;
 }
 
@@ -109,10 +116,7 @@ export async function deleteAdminUser(adminId: string, targetUserId: string): Pr
     method: 'DELETE',
     headers: { 'x-user-id': adminId },
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || 'Failed to delete account');
-  }
+  await safeJson(res, 'Failed to delete account');
 }
 
 export async function updateAdminUserPlan(
@@ -129,8 +133,7 @@ export async function updateAdminUserPlan(
     },
     body: JSON.stringify({ plan, durationDays }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to update plan');
+  const data = await safeJson<{ user: User }>(res, 'Failed to update plan');
   return data.user;
 }
 
@@ -142,10 +145,7 @@ export async function getAdminActivityLogs(adminId: string, filters?: { userId?:
   const res = await fetch(`${API_BASE}/admin/logs?${query.toString()}`, {
     headers: { 'x-user-id': adminId },
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || 'Failed to fetch activity logs');
-  }
+  const data = await safeJson<{ logs: ActivityLog[] }>(res, 'Failed to fetch activity logs');
   return data.logs;
 }
 
@@ -158,9 +158,7 @@ export async function getSubscriptionStatus(userId: string): Promise<{
   const res = await fetch(`${API_BASE}/subscription/status`, {
     headers: { 'x-user-id': userId },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to get subscription status');
-  return data;
+  return await safeJson(res, 'Failed to get subscription status');
 }
 
 export async function submitPaymentRequest(
@@ -172,17 +170,14 @@ export async function submitPaymentRequest(
     headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
     body: JSON.stringify(payload),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to submit payment');
-  return data;
+  return await safeJson(res, 'Failed to submit payment');
 }
 
 export async function getAdminPayments(adminId: string): Promise<PaymentRequest[]> {
   const res = await fetch(`${API_BASE}/admin/payments`, {
     headers: { 'x-user-id': adminId },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to load payments');
+  const data = await safeJson<{ paymentRequests: PaymentRequest[] }>(res, 'Failed to load payments');
   return data.paymentRequests;
 }
 
@@ -191,8 +186,7 @@ export async function approvePayment(adminId: string, paymentId: string): Promis
     method: 'POST',
     headers: { 'x-user-id': adminId },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to approve payment');
+  const data = await safeJson<{ paymentRequest: PaymentRequest }>(res, 'Failed to approve payment');
   return data.paymentRequest;
 }
 
@@ -202,7 +196,6 @@ export async function rejectPayment(adminId: string, paymentId: string, reason?:
     headers: { 'Content-Type': 'application/json', 'x-user-id': adminId },
     body: JSON.stringify({ reason }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to reject payment');
+  const data = await safeJson<{ paymentRequest: PaymentRequest }>(res, 'Failed to reject payment');
   return data.paymentRequest;
 }

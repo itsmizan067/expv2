@@ -143,7 +143,15 @@ export class OfflineStorageManager {
         throw new Error(`Sync server responded with ${response.status}`);
       }
 
-      const result = await response.json();
+      const text = await response.text();
+      let result: any = {};
+      if (text) {
+        try {
+          result = JSON.parse(text);
+        } catch {
+          result = {};
+        }
+      }
       const serverTxs: Transaction[] = result.serverTransactions || [];
 
       // Update local storage with fresh synced server list
