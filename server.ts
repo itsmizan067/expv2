@@ -5,9 +5,15 @@ import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import { User, ActivityLog, Transaction, SyncQueueItem, UserRole, AccountStatus } from './src/types';
 
-const PORT = 3000;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
+
+// esbuild compiles server.ts to dist/server.cjs (CommonJS), so __dirname is always
+// available and points to the dist/ folder — exactly where our static assets live.
+const __dirname_compat = __dirname;
+
 const DATA_DIR = path.join(process.cwd(), '.data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
+
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
@@ -800,7 +806,8 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    // In production, server.cjs is inside dist/, so __dirname_compat IS the dist folder.
+    const distPath = __dirname_compat;
 
     // Serve static assets with proper caching and MIME types
     app.use(express.static(distPath, {
