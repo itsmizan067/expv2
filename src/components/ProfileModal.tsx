@@ -157,20 +157,23 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           {/* Profile Picture */}
           <div className="flex flex-col items-center mb-6">
             <div className="relative group">
-              {profilePicture ? (
-                <img
-                  src={profilePicture}
-                  alt="Profile"
-                  className="w-24 h-24 rounded-full object-cover border-4 border-emerald-100 shadow-lg"
-                />
-              ) : (
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center border-4 border-emerald-100 shadow-lg">
-                  <span className="text-2xl font-black text-white">{initials}</span>
-                </div>
-              )}
+              <div className="w-24 h-24 rounded-full overflow-hidden shrink-0 aspect-square border-4 border-emerald-100 shadow-lg bg-slate-100 flex items-center justify-center">
+                {profilePicture ? (
+                  <img
+                    src={profilePicture}
+                    alt="Profile"
+                    className="w-full h-full object-cover shrink-0 aspect-square rounded-full"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+                    <span className="text-2xl font-black text-white">{initials}</span>
+                  </div>
+                )}
+              </div>
               <button
+                type="button"
                 onClick={() => fileRef.current?.click()}
-                className="absolute bottom-0 right-0 p-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full shadow-lg border-2 border-white transition transform group-hover:scale-110"
+                className="absolute bottom-0 right-0 p-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full shadow-lg border-2 border-white transition transform group-hover:scale-110 cursor-pointer"
               >
                 <Camera className="w-3.5 h-3.5" />
               </button>

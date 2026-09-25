@@ -88,9 +88,6 @@ export const Header: React.FC<HeaderProps> = ({
                   PWA
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-medium">
-                Offline-First • Cloud Sync
-              </p>
             </div>
           </div>
 
@@ -215,13 +212,13 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* User Logged In Actions */}
             {user ? (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
                 {user.role !== 'admin' && (
                   <>
                     <button
                       id="header-add-tx-btn"
                       onClick={onOpenNewTx}
-                      className="flex items-center space-x-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow-sm"
+                      className="flex items-center space-x-1 px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow-sm shrink-0"
                     >
                       <Plus className="w-4 h-4" />
                       <span className="hidden sm:inline">Add Record</span>
@@ -231,7 +228,7 @@ export const Header: React.FC<HeaderProps> = ({
                       id="header-budget-btn"
                       onClick={onOpenBudget}
                       title="Set Budget & Currency"
-                      className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition"
+                      className="hidden sm:inline-flex p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition shrink-0"
                     >
                       <Sliders className="w-4 h-4" />
                     </button>
@@ -240,7 +237,7 @@ export const Header: React.FC<HeaderProps> = ({
                       id="header-export-btn"
                       onClick={onOpenExport}
                       title="Export CSV & Backup"
-                      className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition"
+                      className="hidden sm:inline-flex p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition shrink-0"
                     >
                       <FileSpreadsheet className="w-4 h-4" />
                     </button>
@@ -250,31 +247,37 @@ export const Header: React.FC<HeaderProps> = ({
                         id="header-plan-btn"
                         onClick={onOpenPlan}
                         title="Manage Subscription & Upgrade"
-                        className="flex items-center space-x-1.5 px-2.5 py-1 bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-300 rounded-lg border border-amber-500/30 transition text-xs font-semibold"
+                        className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-300 rounded-lg border border-amber-500/30 transition text-xs font-semibold shrink-0"
                       >
                         <Crown className="w-3.5 h-3.5 text-amber-400" />
-                        <span className="hidden sm:inline">Plan</span>
+                        <span>Plan</span>
                       </button>
                     )}
                   </>
                 )}
 
                 {/* Profile Pill & Role */}
-                <div className="flex items-center pl-1 sm:pl-2 border-l border-slate-800 space-x-2">
+                <div className="flex items-center pl-1 sm:pl-2 border-l border-slate-800 space-x-1 sm:space-x-2 shrink-0">
                   <button
                     id="header-profile-btn"
                     onClick={onOpenProfile}
-                    className="flex items-center space-x-2 hover:bg-slate-800/60 rounded-xl px-2 py-1 transition group"
+                    className="flex items-center space-x-2 hover:bg-slate-800/60 rounded-xl p-1 sm:px-2 sm:py-1 transition group shrink-0"
                     title="View Profile & Plan"
                   >
                     {/* Avatar */}
-                    {user.profilePicture ? (
-                      <img src={user.profilePicture} alt="" className="w-7 h-7 rounded-full object-cover border border-slate-600" />
-                    ) : (
-                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-[10px] font-bold border border-slate-600">
-                        {user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
-                      </div>
-                    )}
+                    <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 aspect-square border border-slate-600 bg-slate-800 flex items-center justify-center">
+                      {user.profilePicture ? (
+                        <img
+                          src={user.profilePicture}
+                          alt={user.name}
+                          className="w-full h-full object-cover shrink-0 aspect-square rounded-full"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-[11px] font-bold">
+                          {user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+                        </div>
+                      )}
+                    </div>
                     <div className="text-right hidden lg:block">
                       <div className="text-xs font-bold text-slate-200 truncate max-w-[120px] group-hover:text-white">
                         {user.name}
@@ -302,7 +305,7 @@ export const Header: React.FC<HeaderProps> = ({
                     id="header-logout-btn"
                     onClick={onLogout}
                     title="Sign Out"
-                    className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition"
+                    className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition shrink-0"
                   >
                     <LogOut className="w-4 h-4" />
                   </button>
