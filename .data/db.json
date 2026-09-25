@@ -1,0 +1,97 @@
+{
+  "users": [
+    {
+      "id": "super-admin-1",
+      "name": "Mizan (Super Admin)",
+      "email": "mizan.boss@gmail.com",
+      "passwordHash": "07632e2648a61b6653ac8c8b1c1a8ba6:e57aa230186f513b193de15f0818e4958a474210e5da5e16eb7ae1c08a703bae1a6f9cf153b8bdb6c5ff9c4d044e7904343daf107bd47941f80740ad2833d256",
+      "role": "super_admin",
+      "status": "active",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "lastLoginAt": "2026-09-25T17:42:31.787Z",
+      "lastActiveAt": "2026-09-25T17:42:31.787Z",
+      "totalLogins": 0,
+      "currency": "USD",
+      "monthlyBudgetLimit": 10000
+    },
+    {
+      "id": "admin-1",
+      "name": "System Admin",
+      "email": "admin@gmail.com",
+      "passwordHash": "f50db345e9d746ccd95ee4a83d8ecd67:5b17a199995303af452bda29503d81baa05215a9e3645a28104292e5916db11406e6977a076ea3c7a94571a8ed4545a54fa2a922abb5c23c3e8774ba68461939",
+      "role": "admin",
+      "status": "active",
+      "createdAt": "2025-01-01T08:00:00.000Z",
+      "lastLoginAt": "2026-09-25T17:42:31.810Z",
+      "lastActiveAt": "2026-09-25T17:42:31.810Z",
+      "totalLogins": 0,
+      "currency": "USD",
+      "monthlyBudgetLimit": 5000
+    },
+    {
+      "id": "user-1790358181048-arekc",
+      "name": "Mizan",
+      "email": "miz123@gmail.com",
+      "passwordHash": "d776a2b36f7e9bedf67037f26bd9d871:fb6227a73bb881d2ad7694e31b4e15ca2f9d3b71e9439bc32bcf901826cf58c10f61e84c0b4bb6ced55f6f0f6da79a7144df5522b8eb1233405c7c394b02d51d",
+      "role": "user",
+      "status": "active",
+      "createdAt": "2026-09-25T17:43:01.081Z",
+      "lastLoginAt": "2026-09-25T17:43:22.411Z",
+      "lastActiveAt": "2026-09-25T17:43:22.411Z",
+      "totalLogins": 1,
+      "currency": "BDT",
+      "monthlyBudgetLimit": 3000,
+      "plan": "trial",
+      "planStatus": "active",
+      "trialEndsAt": "2026-10-02T17:43:01.048Z"
+    }
+  ],
+  "transactions": [],
+  "logs": [
+    {
+      "id": "log-1790358202411-jst3m",
+      "userId": "user-1790358181048-arekc",
+      "userName": "Mizan",
+      "userEmail": "miz123@gmail.com",
+      "action": "LOGIN",
+      "details": "User signed in successfully (Role: user)",
+      "ip": "127.0.0.1",
+      "device": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+      "timestamp": "2026-09-25T17:43:22.411Z"
+    },
+    {
+      "id": "log-1790358194695-r1dcu",
+      "userId": "admin-1",
+      "userName": "System Admin",
+      "userEmail": "admin@gmail.com",
+      "action": "STATUS_CHANGE",
+      "details": "Changed status of Mizan (miz123@gmail.com) from pending → active",
+      "ip": "127.0.0.1",
+      "device": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+      "timestamp": "2026-09-25T17:43:14.695Z"
+    },
+    {
+      "id": "log-1790358181082-s8ih2",
+      "userId": "user-1790358181048-arekc",
+      "userName": "Mizan",
+      "userEmail": "miz123@gmail.com",
+      "action": "ACCOUNT_REGISTER",
+      "details": "Registered new user account (Status: pending — awaiting admin approval)",
+      "ip": "127.0.0.1",
+      "device": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+      "timestamp": "2026-09-25T17:43:01.082Z"
+    },
+    {
+      "id": "log-seed-1",
+      "userId": "super-admin-1",
+      "userName": "Mizan (Super Admin)",
+      "userEmail": "mizan.boss@gmail.com",
+      "action": "LOGIN",
+      "details": "Super Admin account seeded and initialized",
+      "ip": "127.0.0.1",
+      "device": "System Seed",
+      "timestamp": "2026-09-25T17:42:31.810Z"
+    }
+  ],
+  "paymentRequests": []
+}

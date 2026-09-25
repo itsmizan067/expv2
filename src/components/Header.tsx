@@ -34,6 +34,8 @@ interface HeaderProps {
   activeTab: 'dashboard' | 'transactions' | 'analytics' | 'admin' | 'report';
   setActiveTab: (tab: 'dashboard' | 'transactions' | 'analytics' | 'admin' | 'report') => void;
   onManualSync: () => void;
+  onOpenProfile?: () => void;
+  onOpenPlan?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -52,6 +54,8 @@ export const Header: React.FC<HeaderProps> = ({
   activeTab,
   setActiveTab,
   onManualSync,
+  onOpenProfile,
+  onOpenPlan,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 text-white shadow-md">
@@ -245,27 +249,42 @@ export const Header: React.FC<HeaderProps> = ({
 
                 {/* Profile Pill & Role */}
                 <div className="flex items-center pl-1 sm:pl-2 border-l border-slate-800 space-x-2">
-                  <div className="text-right hidden lg:block">
-                    <div className="text-xs font-bold text-slate-200 truncate max-w-[120px]">
-                      {user.name}
-                    </div>
-                  {user.role === 'user' && (
-                    <span className="text-[10px] text-slate-400 capitalize flex items-center justify-end space-x-1">
-                      {user.plan === 'premium' && user.planStatus === 'active' ? (
-                        <span className="text-amber-400 font-semibold flex items-center space-x-1"><Crown className="w-3 h-3" /><span>Premium</span></span>
-                      ) : user.plan === 'standard' && user.planStatus === 'active' ? (
-                        <span className="text-sky-400 font-semibold">Standard</span>
-                      ) : user.plan === 'trial' ? (
-                        <span className="text-emerald-400 font-semibold">Trial</span>
-                      ) : (
-                        <span>Standard User</span>
+                  <button
+                    id="header-profile-btn"
+                    onClick={onOpenProfile}
+                    className="flex items-center space-x-2 hover:bg-slate-800/60 rounded-xl px-2 py-1 transition group"
+                    title="View Profile & Plan"
+                  >
+                    {/* Avatar */}
+                    {user.profilePicture ? (
+                      <img src={user.profilePicture} alt="" className="w-7 h-7 rounded-full object-cover border border-slate-600" />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-[10px] font-bold border border-slate-600">
+                        {user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+                      </div>
+                    )}
+                    <div className="text-right hidden lg:block">
+                      <div className="text-xs font-bold text-slate-200 truncate max-w-[120px] group-hover:text-white">
+                        {user.name}
+                      </div>
+                      {user.role === 'user' && (
+                        <span className="text-[10px] text-slate-400 capitalize flex items-center justify-end space-x-1">
+                          {user.plan === 'premium' && user.planStatus === 'active' ? (
+                            <span className="text-amber-400 font-semibold flex items-center space-x-1"><Crown className="w-3 h-3" /><span>Premium</span></span>
+                          ) : user.plan === 'standard' && user.planStatus === 'active' ? (
+                            <span className="text-sky-400 font-semibold">Standard</span>
+                          ) : user.plan === 'trial' ? (
+                            <span className="text-emerald-400 font-semibold">Trial</span>
+                          ) : (
+                            <span>Standard User</span>
+                          )}
+                        </span>
                       )}
-                    </span>
-                  )}
-                  {(user.role === 'admin' || user.role === 'super_admin') && (
-                    <span className="text-[10px] text-indigo-400 font-semibold">Administrator</span>
-                  )}
-                  </div>
+                      {(user.role === 'admin' || user.role === 'super_admin') && (
+                        <span className="text-[10px] text-indigo-400 font-semibold">Administrator</span>
+                      )}
+                    </div>
+                  </button>
 
                   <button
                     id="header-logout-btn"

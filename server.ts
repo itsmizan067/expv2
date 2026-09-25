@@ -439,7 +439,7 @@ async function startServer() {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { name, currency, monthlyBudgetLimit } = req.body;
+    const { name, currency, monthlyBudgetLimit, phone, profilePicture } = req.body;
     const db = readDb();
     const userIndex = db.users.findIndex(u => u.id === userId);
 
@@ -452,6 +452,8 @@ async function startServer() {
     if (monthlyBudgetLimit !== undefined) {
       db.users[userIndex].monthlyBudgetLimit = Number(monthlyBudgetLimit);
     }
+    if (phone !== undefined) db.users[userIndex].phone = phone.trim();
+    if (profilePicture !== undefined) db.users[userIndex].profilePicture = profilePicture;
     db.users[userIndex].lastActiveAt = new Date().toISOString();
 
     writeDb(db);
