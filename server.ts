@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import fs from 'fs';
 import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
@@ -7,9 +8,10 @@ import { User, ActivityLog, Transaction, SyncQueueItem, UserRole, AccountStatus 
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 
-// esbuild compiles server.ts to dist/server.cjs (CommonJS), so __dirname is always
-// available and points to the dist/ folder — exactly where our static assets live.
-const __dirname_compat = __dirname;
+// In ESM (tsx dev), __dirname is not available; derive it from import.meta.url.
+// In production (esbuild → dist/server.cjs, CommonJS), esbuild injects __dirname
+// automatically, but this branch is never reached there.
+const __dirname_compat = path.dirname(fileURLToPath(import.meta.url));
 
 const DATA_DIR = path.join(process.cwd(), '.data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
