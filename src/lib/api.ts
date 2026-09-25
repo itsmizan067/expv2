@@ -115,6 +115,25 @@ export async function deleteAdminUser(adminId: string, targetUserId: string): Pr
   }
 }
 
+export async function updateAdminUserPlan(
+  adminId: string,
+  targetUserId: string,
+  plan: 'trial' | 'standard' | 'premium',
+  durationDays = 30
+): Promise<User> {
+  const res = await fetch(`${API_BASE}/admin/users/${targetUserId}/plan`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-user-id': adminId,
+    },
+    body: JSON.stringify({ plan, durationDays }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to update plan');
+  return data.user;
+}
+
 export async function getAdminActivityLogs(adminId: string, filters?: { userId?: string; action?: string }): Promise<ActivityLog[]> {
   const query = new URLSearchParams();
   if (filters?.userId) query.append('userId', filters.userId);

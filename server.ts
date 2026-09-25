@@ -523,6 +523,48 @@ async function startServer() {
     res.json({ user: safeUser, message: `Account status updated to ${status}` });
   });
 
+  // Admin: update a user's subscription plan directly
+  app.patch('/api/admin/users/:id/plan', requireAdmin, (req, res) => {
+    const { id } = req.params;
+    const { plan, durationDays = 30 } = req.body as { plan: 'trial' | 'standard' | 'premium'; durationDays?: number };
+    const adminUserId = req.headers['x-user-id'] as string;
+
+    const db = readDb();
+    const adminUser = db.users.find(u => u.id === adminUserId);
+    const userIndex = db.users.findIndex(u => u.id === id);
+
+    if (userIndex === -1) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const targetUser = db.users[userIndex];
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + (Number(durationDays) || 30));
+
+    targetUser.plan = plan;
+    targetUser.planStatus = 'active';
+    if (plan === 'trial') {
+      targetUser.trialEndsAt = expiry.toISOString();
+    } else {
+      targetUser.planExpiresAt = expiry.toISOString();
+    }
+
+    db.users[userIndex] = targetUser;
+    writeDb(db);
+
+    addActivityLog(
+      adminUserId,
+      adminUser?.name || 'Admin',
+      adminUser?.email || 'admin',
+      'USER_PLAN_UPDATE',
+      `Updated plan of ${targetUser.name} (${targetUser.email}) to ${plan} (valid until ${expiry.toISOString().slice(0, 10)})`,
+      req
+    );
+
+    const { passwordHash: _, ...safeUser } = targetUser;
+    res.json({ user: safeUser, message: `User plan updated to ${plan}` });
+  });
+
   // Delete user (admin can delete users; super_admin can delete admins too)
   app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
     const { id } = req.params;
@@ -814,7 +856,9 @@ async function startServer() {
       }
     }
 
-    writeDb(db);
+    if (appliedChanges > 0) {
+      writeDb(db);
+    }
 
     const user = db.users.find(u => u.id === userId);
     if (appliedChanges > 0) {
@@ -954,7 +998,12 @@ async function startServer() {
   // ==========================================
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        watch: {
+          ignored: ['**/.data/**', '**/db.json', /[\/\\]\.data[\/\\]/, /\.data/],
+        },
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);

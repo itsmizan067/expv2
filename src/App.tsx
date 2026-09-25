@@ -16,6 +16,8 @@ import { ExportImportModal } from './components/ExportImportModal';
 import { LandingPage } from './components/LandingPage';
 import { SubscriptionWall } from './components/SubscriptionWall';
 import { MonthlyReport } from './components/MonthlyReport';
+import { ProfileModal } from './components/ProfileModal';
+import { PlanModal } from './components/PlanModal';
 import {
   Plus,
   BarChart3,
@@ -56,6 +58,8 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
 
   // PWA Install Prompt
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<any>(null);
@@ -128,7 +132,7 @@ export default function App() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [currentUser, isAdmin]);
+  }, [currentUser?.id, isAdmin]);
 
   // ─── PWA Service Worker & Install Prompt ──────────────────────────────────
   useEffect(() => {
@@ -396,6 +400,8 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onManualSync={triggerSync}
+        onOpenProfile={() => setIsProfileModalOpen(true)}
+        onOpenPlan={() => setIsPlanModalOpen(true)}
       />
 
       {/* Offline/sync banner — only for regular users */}
@@ -608,6 +614,34 @@ export default function App() {
         isOpen={showInstallBanner}
         onClose={() => setShowInstallBanner(false)}
       />
+
+      {currentUser && (
+        <>
+          <ProfileModal
+            isOpen={isProfileModalOpen}
+            onClose={() => setIsProfileModalOpen(false)}
+            user={currentUser}
+            onUserUpdate={updatedUser => {
+              setCurrentUser(updatedUser);
+              setStoredUser(updatedUser);
+            }}
+            onOpenPlanModal={() => {
+              setIsProfileModalOpen(false);
+              setIsPlanModalOpen(true);
+            }}
+          />
+
+          <PlanModal
+            isOpen={isPlanModalOpen}
+            onClose={() => setIsPlanModalOpen(false)}
+            user={currentUser}
+            onUserUpdate={updatedUser => {
+              setCurrentUser(updatedUser);
+              setStoredUser(updatedUser);
+            }}
+          />
+        </>
+      )}
 
     </div>
   );

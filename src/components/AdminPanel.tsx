@@ -32,6 +32,7 @@ import {
   getAdminPayments,
   approvePayment,
   rejectPayment,
+  updateAdminUserPlan,
 } from '../lib/api';
 
 interface AdminPanelProps {
@@ -112,6 +113,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
 
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+
+  const handlePlanChange = async (targetUserId: string, plan: 'trial' | 'standard' | 'premium') => {
+    try {
+      await updateAdminUserPlan(adminUser.id, targetUserId, plan, 30);
+      setSuccessMessage(`User plan successfully updated to ${plan}`);
+      setTimeout(() => setSuccessMessage(''), 3000);
+      fetchData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to update user plan');
+    }
+  };
 
   const handleRejectPayment = async (paymentId: string) => {
     try {
@@ -314,6 +326,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
                   <th className="py-3 px-4">User Details</th>
                   <th className="py-3 px-4">Role</th>
                   <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Active Plan</th>
                   <th className="py-3 px-4">Activity Timeline</th>
                   <th className="py-3 px-4 text-center">Tx Count</th>
                   <th className="py-3 px-4 text-right">Moderation Actions</th>
@@ -359,6 +372,59 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
                             <XCircle className="w-3 h-3 text-rose-600" />
                             <span>Disabled</span>
                           </span>
+                        )}
+                      </td>
+
+                      {/* Active Plan */}
+                      <td className="py-3 px-4">
+                        {u.role === 'admin' || u.role === 'super_admin' ? (
+                          <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold text-[10px]">
+                            Admin Access
+                          </span>
+                        ) : (
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-1.5">
+                              {u.plan === 'premium' && u.planStatus === 'active' ? (
+                                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-300 font-bold text-[10px]">
+                                  <Crown className="w-3 h-3 text-amber-500" />
+                                  <span>Premium</span>
+                                </span>
+                              ) : u.plan === 'standard' && u.planStatus === 'active' ? (
+                                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-300 font-bold text-[10px]">
+                                  <span>Standard</span>
+                                </span>
+                              ) : u.plan === 'trial' ? (
+                                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-[10px]">
+                                  <span>Free Trial</span>
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-semibold text-[10px]">
+                                  None / Expired
+                                </span>
+                              )}
+                            </div>
+                            {u.planExpiresAt && (
+                              <div className="text-[10px] text-slate-400">
+                                Exp: {formatDate(u.planExpiresAt)}
+                              </div>
+                            )}
+                            {u.trialEndsAt && u.plan === 'trial' && (
+                              <div className="text-[10px] text-slate-400">
+                                Ends: {formatDate(u.trialEndsAt)}
+                              </div>
+                            )}
+                            {/* Quick Plan Override */}
+                            <select
+                              value={u.plan || 'trial'}
+                              onChange={e => handlePlanChange(u.id, e.target.value as any)}
+                              className="text-[10px] bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-slate-700 focus:outline-none focus:border-indigo-500 cursor-pointer block mt-1"
+                              title="Override user plan (30 days)"
+                            >
+                              <option value="trial">Trial (Free)</option>
+                              <option value="standard">Standard (100৳)</option>
+                              <option value="premium">Premium (250৳)</option>
+                            </select>
+                          </div>
                         )}
                       </td>
 

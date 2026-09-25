@@ -244,6 +244,18 @@ export const Header: React.FC<HeaderProps> = ({
                     >
                       <FileSpreadsheet className="w-4 h-4" />
                     </button>
+
+                    {onOpenPlan && (
+                      <button
+                        id="header-plan-btn"
+                        onClick={onOpenPlan}
+                        title="Manage Subscription & Upgrade"
+                        className="flex items-center space-x-1.5 px-2.5 py-1 bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-300 rounded-lg border border-amber-500/30 transition text-xs font-semibold"
+                      >
+                        <Crown className="w-3.5 h-3.5 text-amber-400" />
+                        <span className="hidden sm:inline">Plan</span>
+                      </button>
+                    )}
                   </>
                 )}
 
