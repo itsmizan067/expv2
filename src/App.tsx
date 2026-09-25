@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { User, Transaction, SyncResult } from './types';
 import { OfflineStorageManager } from './lib/offlineManager';
 import { getStoredUser, setStoredUser, updateProfile } from './lib/api';
@@ -102,11 +102,18 @@ export default function App() {
     }
   }, [currentUser, isAdmin, offlineManager, refreshLocalData]);
 
+  // Keep a stable ref to triggerSync to avoid re-running the network
+  // listener effect every time the callback identity changes.
+  const triggerSyncRef = useRef(triggerSync);
+  useEffect(() => {
+    triggerSyncRef.current = triggerSync;
+  }, [triggerSync]);
+
   // ─── Network Listeners & Auto-Sync ────────────────────────────────────────
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      triggerSync();
+      triggerSyncRef.current();
     };
     const handleOffline = () => setIsOnline(false);
 
@@ -114,14 +121,14 @@ export default function App() {
     window.addEventListener('offline', handleOffline);
 
     if (navigator.onLine && currentUser && !isAdmin) {
-      triggerSync();
+      triggerSyncRef.current();
     }
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [currentUser, isAdmin, triggerSync]);
+  }, [currentUser, isAdmin]);
 
   // ─── PWA Service Worker & Install Prompt ──────────────────────────────────
   useEffect(() => {
