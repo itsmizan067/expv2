@@ -1013,8 +1013,13 @@ async function startServer() {
 
     // Serve static assets with proper caching and MIME types
     app.use(express.static(distPath, {
-      maxAge: '1y',
-      immutable: true,
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html') || filePath.endsWith('sw.js') || filePath.endsWith('manifest.webmanifest')) {
+          res.setHeader('Cache-Control', 'no-cache');
+        } else if (filePath.includes('/assets/') || filePath.includes('\\assets\\')) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      },
     }));
 
     // SPA fallback: only for non-file, non-API routes
