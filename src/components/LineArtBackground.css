@@ -1,0 +1,210 @@
+/* Minimal Hand-Drawn Line-Art Background Animation Styles */
+
+@keyframes lineArtDraw {
+  0% {
+    stroke-dashoffset: 100;
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes lineArtFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes lineArtFadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes lineArtFloatBill {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.7;
+  }
+  80% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(-18px, -50px) rotate(-15deg);
+    opacity: 0;
+  }
+}
+
+@keyframes lineArtFloatBillAlt {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.65;
+  }
+  75% {
+    opacity: 0.65;
+  }
+  100% {
+    transform: translate(22px, -45px) rotate(18deg);
+    opacity: 0;
+  }
+}
+
+@keyframes lineArtCoinRoll {
+  0% {
+    transform: translateX(-160px) rotate(0deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(120px) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+@keyframes lineArtCoinDropBounce {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  30% {
+    transform: translate(25px, 85px) rotate(120deg);
+  }
+  45% {
+    transform: translate(45px, 60px) rotate(220deg);
+  }
+  60% {
+    transform: translate(65px, 85px) rotate(320deg);
+  }
+  75% {
+    transform: translate(80px, 78px) rotate(400deg);
+  }
+  85% {
+    transform: translate(95px, 85px) rotate(480deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(140px, 85px) rotate(640deg);
+    opacity: 0;
+  }
+}
+
+@keyframes lineArtGentleBob {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes lineArtWalkBob {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-2.5px) rotate(0.5deg);
+  }
+  50% {
+    transform: translateY(0) rotate(0deg);
+  }
+  75% {
+    transform: translateY(-2px) rotate(-0.5deg);
+  }
+}
+
+@keyframes lineArtSparkle {
+  0%, 100% {
+    transform: scale(0.6) rotate(0deg);
+    opacity: 0.2;
+  }
+  50% {
+    transform: scale(1.15) rotate(45deg);
+    opacity: 0.9;
+  }
+}
+
+@keyframes lineArtPulseGlow {
+  0%, 100% {
+    opacity: 0.2;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.02);
+  }
+}
+
+/* Staggered Path Drawing Helper Classes */
+.sketch-path {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: lineArtDraw 2.4s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.sketch-path-fast {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: lineArtDraw 1.6s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.sketch-path-long {
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: lineArtDraw 3s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.delay-1 { animation-delay: 0.15s; }
+.delay-2 { animation-delay: 0.3s; }
+.delay-3 { animation-delay: 0.5s; }
+.delay-4 { animation-delay: 0.75s; }
+.delay-5 { animation-delay: 1.0s; }
+.delay-6 { animation-delay: 1.3s; }
+
+/* Accessibility: Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .sketch-path,
+  .sketch-path-fast,
+  .sketch-path-long,
+  .animate-line-draw,
+  .animate-float-bill,
+  .animate-coin-roll,
+  .animate-coin-bounce,
+  .animate-walk-bob,
+  .animate-gentle-bob,
+  .animate-sparkle {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+    transform: none !important;
+    transition: none !important;
+    opacity: 0.7 !important;
+  }
+}

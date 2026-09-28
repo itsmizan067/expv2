@@ -18,6 +18,7 @@ import {
   Star,
   X,
 } from 'lucide-react';
+import { LineArtBackground } from './LineArtBackground';
 
 interface LandingPageProps {
   onSignIn: () => void;
@@ -134,6 +135,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSignIn, onSignUp }) 
 
       {/* ── Hero Section ── */}
       <section className="relative flex flex-col items-center justify-center text-center px-4 pt-24 pb-20 overflow-hidden">
+
+        {/* Minimal Hand-Drawn Line-Art Background Story Animation */}
+        <LineArtBackground />
 
         {/* Decorative blobs */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
