@@ -1,210 +1,354 @@
-/* Minimal Hand-Drawn Line-Art Background Animation Styles */
+/* ==========================================================================
+   Professional Minimalist Hand-Drawn Line-Art Background Animation Styles
+   High-performance GPU-accelerated transforms & smooth fluid easing
+   ========================================================================== */
 
-@keyframes lineArtDraw {
+/* ── Scene Master Transitions ── */
+.lineart-scene-active {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.lineart-scene-inactive {
+  opacity: 0;
+  transform: translate3d(0, 8px, 0);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  will-change: opacity, transform;
+}
+
+/* ── Continuous Value Flow Line (Connecting Left & Right) ── */
+@keyframes continuousFlowDash {
   0% {
-    stroke-dashoffset: 100;
-    opacity: 0;
-  }
-  20% {
-    opacity: 1;
+    stroke-dashoffset: 160;
   }
   100% {
     stroke-dashoffset: 0;
-    opacity: 1;
   }
 }
 
-@keyframes lineArtFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
+.lineart-flow-dash {
+  stroke-dasharray: 8 16;
+  animation: continuousFlowDash 12s linear infinite;
+  will-change: stroke-dashoffset;
+}
+
+@keyframes continuousFlowPulse {
+  0%, 100% {
+    opacity: 0.25;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  50% {
+    opacity: 0.6;
   }
 }
 
-@keyframes lineArtFadeOut {
-  from {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
+.lineart-flow-glow {
+  animation: continuousFlowPulse 4s ease-in-out infinite;
 }
 
-@keyframes lineArtFloatBill {
+/* ── Scene 1: Money Transfer Trail (Left to Right) ── */
+@keyframes noteTransferMotion {
   0% {
-    transform: translate(0, 0) rotate(0deg);
-    opacity: 0;
-  }
-  20% {
-    opacity: 0.7;
-  }
-  80% {
-    opacity: 0.7;
-  }
-  100% {
-    transform: translate(-18px, -50px) rotate(-15deg);
-    opacity: 0;
-  }
-}
-
-@keyframes lineArtFloatBillAlt {
-  0% {
-    transform: translate(0, 0) rotate(0deg);
-    opacity: 0;
-  }
-  25% {
-    opacity: 0.65;
-  }
-  75% {
-    opacity: 0.65;
-  }
-  100% {
-    transform: translate(22px, -45px) rotate(18deg);
-    opacity: 0;
-  }
-}
-
-@keyframes lineArtCoinRoll {
-  0% {
-    transform: translateX(-160px) rotate(0deg);
+    transform: translate3d(0, 0, 0) scale(0.85);
     opacity: 0;
   }
   15% {
     opacity: 1;
   }
+  50% {
+    transform: translate3d(120px, -18px, 0) scale(1.05) rotate(4deg);
+    opacity: 1;
+  }
   85% {
+    transform: translate3d(240px, 0, 0) scale(1);
     opacity: 1;
   }
   100% {
-    transform: translateX(120px) rotate(720deg);
+    transform: translate3d(255px, 0, 0) scale(0.9);
     opacity: 0;
   }
 }
 
-@keyframes lineArtCoinDropBounce {
+.animate-note-transfer {
+  animation: noteTransferMotion 5.5s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+  will-change: transform, opacity;
+}
+
+/* ── Scene 2: Rolling Coin Across Screen (Full Horizon Traversal) ── */
+@keyframes coinCrossRoll {
   0% {
-    transform: translate(0, 0) rotate(0deg);
+    transform: translate3d(0, 0, 0) rotate(0deg);
     opacity: 0;
   }
-  10% {
+  8% {
     opacity: 1;
-  }
-  30% {
-    transform: translate(25px, 85px) rotate(120deg);
-  }
-  45% {
-    transform: translate(45px, 60px) rotate(220deg);
-  }
-  60% {
-    transform: translate(65px, 85px) rotate(320deg);
   }
   75% {
-    transform: translate(80px, 78px) rotate(400deg);
+    opacity: 1;
   }
-  85% {
-    transform: translate(95px, 85px) rotate(480deg);
+  92% {
+    transform: translate3d(760px, 0, 0) rotate(2160deg);
     opacity: 1;
   }
   100% {
-    transform: translate(140px, 85px) rotate(640deg);
+    transform: translate3d(780px, -40px, 0) rotate(2300deg);
     opacity: 0;
   }
 }
 
-@keyframes lineArtGentleBob {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-3px);
-  }
+.animate-coin-cross-roll {
+  animation: coinCrossRoll 6.5s cubic-bezier(0.12, 0.75, 0.35, 1) infinite;
+  will-change: transform, opacity;
 }
 
-@keyframes lineArtWalkBob {
-  0%, 100% {
-    transform: translateY(0) rotate(0deg);
+/* ── Scene 2: Realistic Passerby Bend to Pick Up Coin ── */
+@keyframes passerbyPickMotion {
+  0%, 15% {
+    transform: translate3d(100px, 0, 0);
+    opacity: 0;
   }
   25% {
-    transform: translateY(-2.5px) rotate(0.5deg);
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
   }
-  50% {
-    transform: translateY(0) rotate(0deg);
+  65% {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
   }
-  75% {
-    transform: translateY(-2px) rotate(-0.5deg);
+  85%, 100% {
+    transform: translate3d(-80px, 0, 0);
+    opacity: 0;
   }
 }
 
-@keyframes lineArtSparkle {
+.animate-passerby-walk {
+  animation: passerbyPickMotion 6.5s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  will-change: transform, opacity;
+}
+
+/* ── Scene 3: Shop Counter Slide Payment ── */
+@keyframes coinCounterSlide {
+  0%, 20% {
+    transform: translate3d(160px, 0, 0);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  55% {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+  75% {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+  85%, 100% {
+    transform: translate3d(-20px, 0, 0);
+    opacity: 0;
+  }
+}
+
+.animate-coin-counter-slide {
+  animation: coinCounterSlide 6s cubic-bezier(0.2, 0.9, 0.3, 1) infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes productHandover {
+  0%, 45% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0;
+  }
+  55% {
+    opacity: 1;
+  }
+  75% {
+    transform: translate3d(90px, 0, 0);
+    opacity: 1;
+  }
+  90%, 100% {
+    transform: translate3d(140px, 0, 0);
+    opacity: 0;
+  }
+}
+
+.animate-product-handover {
+  animation: productHandover 6s cubic-bezier(0.2, 0.9, 0.3, 1) infinite;
+  will-change: transform, opacity;
+}
+
+/* ── Scene 4: Realistic Bouncing Physics Coin ── */
+@keyframes coinPhysicsBounce {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 0;
+  }
+  6% {
+    opacity: 1;
+  }
+  /* Drop 1 to ground */
+  22% {
+    transform: translate3d(100px, 140px, 0) rotate(360deg);
+  }
+  /* Bounce 1 peak */
+  35% {
+    transform: translate3d(170px, 70px, 0) rotate(640deg);
+  }
+  /* Drop 2 to ground */
+  48% {
+    transform: translate3d(240px, 140px, 0) rotate(960deg);
+  }
+  /* Bounce 2 peak */
+  58% {
+    transform: translate3d(295px, 105px, 0) rotate(1200deg);
+  }
+  /* Drop 3 to ground */
+  68% {
+    transform: translate3d(350px, 140px, 0) rotate(1440deg);
+  }
+  /* Roll to child */
+  86% {
+    transform: translate3d(520px, 140px, 0) rotate(2160deg);
+    opacity: 1;
+  }
+  92% {
+    transform: translate3d(540px, 95px, 0) rotate(2280deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(580px, 90px, 0) rotate(2400deg);
+    opacity: 0;
+  }
+}
+
+.animate-coin-physics-bounce {
+  animation: coinPhysicsBounce 6.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  will-change: transform, opacity;
+}
+
+/* ── Scene 4: Child Sprint Across to Catch ── */
+@keyframes childSprintCatch {
+  0%, 25% {
+    transform: translate3d(180px, 0, 0);
+    opacity: 0;
+  }
+  38% {
+    opacity: 1;
+  }
+  68% {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+  85% {
+    transform: translate3d(-30px, -8px, 0);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(120px, 0, 0);
+    opacity: 0;
+  }
+}
+
+.animate-child-sprint {
+  animation: childSprintCatch 6.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  will-change: transform, opacity;
+}
+
+/* ── Subtle Ambient Floating Sparkles ── */
+@keyframes ambientGlisten {
   0%, 100% {
-    transform: scale(0.6) rotate(0deg);
-    opacity: 0.2;
+    transform: scale(0.65) rotate(0deg);
+    opacity: 0.15;
   }
   50% {
     transform: scale(1.15) rotate(45deg);
-    opacity: 0.9;
+    opacity: 0.85;
   }
 }
 
-@keyframes lineArtPulseGlow {
+.animate-glisten {
+  animation: ambientGlisten 3s ease-in-out infinite;
+}
+
+/* ── Scene 0: Bills Aligning into Harmonious Stream ── */
+@keyframes billsHarmonize {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(-12deg);
+    opacity: 0;
+  }
+  20% {
+    transform: translate3d(20px, -25px, 0) rotate(-6deg);
+    opacity: 0.7;
+  }
+  60% {
+    transform: translate3d(140px, -15px, 0) rotate(0deg);
+    opacity: 0.75;
+  }
+  85% {
+    transform: translate3d(320px, 10px, 0) rotate(0deg);
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate3d(450px, 20px, 0) rotate(0deg);
+    opacity: 0;
+  }
+}
+
+.animate-bills-harmonize-1 {
+  animation: billsHarmonize 6s ease-in-out infinite;
+}
+
+.animate-bills-harmonize-2 {
+  animation: billsHarmonize 6s ease-in-out infinite 0.8s;
+}
+
+.animate-bills-harmonize-3 {
+  animation: billsHarmonize 6s ease-in-out infinite 1.6s;
+}
+
+/* ── Natural Walking Cycle Sway ── */
+@keyframes naturalStrideSway {
   0%, 100% {
-    opacity: 0.2;
-    transform: scale(0.98);
+    transform: translate3d(0, 0, 0);
+  }
+  25% {
+    transform: translate3d(0, -2.5px, 0) rotate(0.4deg);
   }
   50% {
-    opacity: 0.45;
-    transform: scale(1.02);
+    transform: translate3d(0, 0, 0);
+  }
+  75% {
+    transform: translate3d(0, -2px, 0) rotate(-0.4deg);
   }
 }
 
-/* Staggered Path Drawing Helper Classes */
-.sketch-path {
-  stroke-dasharray: 100;
-  stroke-dashoffset: 100;
-  animation: lineArtDraw 2.4s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+.animate-natural-stride {
+  animation: naturalStrideSway 3.2s ease-in-out infinite;
 }
 
-.sketch-path-fast {
-  stroke-dasharray: 100;
-  stroke-dashoffset: 100;
-  animation: lineArtDraw 1.6s cubic-bezier(0.25, 1, 0.5, 1) forwards;
-}
-
-.sketch-path-long {
-  stroke-dasharray: 200;
-  stroke-dashoffset: 200;
-  animation: lineArtDraw 3s cubic-bezier(0.25, 1, 0.5, 1) forwards;
-}
-
-.delay-1 { animation-delay: 0.15s; }
-.delay-2 { animation-delay: 0.3s; }
-.delay-3 { animation-delay: 0.5s; }
-.delay-4 { animation-delay: 0.75s; }
-.delay-5 { animation-delay: 1.0s; }
-.delay-6 { animation-delay: 1.3s; }
-
-/* Accessibility: Reduced Motion */
+/* ── Accessibility: Reduced Motion ── */
 @media (prefers-reduced-motion: reduce) {
-  .sketch-path,
-  .sketch-path-fast,
-  .sketch-path-long,
-  .animate-line-draw,
-  .animate-float-bill,
-  .animate-coin-roll,
-  .animate-coin-bounce,
-  .animate-walk-bob,
-  .animate-gentle-bob,
-  .animate-sparkle {
+  .lineart-scene-active,
+  .lineart-scene-inactive,
+  .lineart-flow-dash,
+  .lineart-flow-glow,
+  .animate-note-transfer,
+  .animate-coin-cross-roll,
+  .animate-passerby-walk,
+  .animate-coin-counter-slide,
+  .animate-product-handover,
+  .animate-coin-physics-bounce,
+  .animate-child-sprint,
+  .animate-glisten,
+  .animate-bills-harmonize-1,
+  .animate-bills-harmonize-2,
+  .animate-bills-harmonize-3,
+  .animate-natural-stride {
     animation: none !important;
-    stroke-dashoffset: 0 !important;
-    transform: none !important;
     transition: none !important;
-    opacity: 0.7 !important;
+    transform: none !important;
+    opacity: 0.55 !important;
   }
 }
