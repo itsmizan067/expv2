@@ -1,351 +1,453 @@
 /* ==========================================================================
-   Professional Minimalist Hand-Drawn Line-Art Background Animation Styles
-   High-performance GPU-accelerated transforms & smooth fluid easing
+   Clear & Understandable Story-Driven Line-Art Animation Styles
+   Step-by-step narrative sequencing with natural physics & clear storytelling
    ========================================================================== */
 
-/* ── Scene Master Transitions ── */
+/* ── Scene Master Cross-Fade ── */
 .lineart-scene-active {
   opacity: 1;
-  transform: translate3d(0, 0, 0);
-  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-  will-change: opacity, transform;
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity;
 }
 
 .lineart-scene-inactive {
   opacity: 0;
-  transform: translate3d(0, 8px, 0);
-  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: none;
-  will-change: opacity, transform;
+  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity;
 }
 
-/* ── Continuous Value Flow Line (Connecting Left & Right) ── */
-@keyframes continuousFlowDash {
+/* ══════════════════════════════════════════════════════════════════════════
+   SCENE 1: Man Gives Money to Approaching Woman
+   Beat A (0-20%): Man reaches into pocket, pulls out wallet
+   Beat B (20-40%): Man opens wallet; Woman enters from right
+   Beat C (40-65%): Man extends banknote; Woman reaches and takes it
+   Beat D (65-85%): Woman walks away with money; Man puts wallet back
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Man's Arm & Wallet Action */
+@keyframes s1ManArmSequence {
+  0%, 8% {
+    transform: translate3d(0, 22px, 0); /* Hand resting in pocket */
+  }
+  16%, 28% {
+    transform: translate3d(15px, 0, 0); /* Pulling wallet out to waist */
+  }
+  38%, 62% {
+    transform: translate3d(48px, -12px, 0); /* Arm extended holding out money */
+  }
+  72%, 86% {
+    transform: translate3d(15px, 4px, 0); /* Folding wallet, putting back */
+  }
+  94%, 100% {
+    transform: translate3d(0, 22px, 0); /* Hand relaxed in pocket */
+  }
+}
+
+.animate-s1-man-arm {
+  animation: s1ManArmSequence 8.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Woman Walking In, Taking Money, and Leaving */
+@keyframes s1WomanSequence {
   0% {
-    stroke-dashoffset: 160;
-  }
-  100% {
-    stroke-dashoffset: 0;
-  }
-}
-
-.lineart-flow-dash {
-  stroke-dasharray: 8 16;
-  animation: continuousFlowDash 12s linear infinite;
-  will-change: stroke-dashoffset;
-}
-
-@keyframes continuousFlowPulse {
-  0%, 100% {
-    opacity: 0.25;
-  }
-  50% {
-    opacity: 0.6;
-  }
-}
-
-.lineart-flow-glow {
-  animation: continuousFlowPulse 4s ease-in-out infinite;
-}
-
-/* ── Scene 1: Money Transfer Trail (Left to Right) ── */
-@keyframes noteTransferMotion {
-  0% {
-    transform: translate3d(0, 0, 0) scale(0.85);
+    transform: translate3d(240px, 0, 0);
     opacity: 0;
   }
-  15% {
+  10% {
     opacity: 1;
   }
-  50% {
-    transform: translate3d(120px, -18px, 0) scale(1.05) rotate(4deg);
+  30%, 60% {
+    transform: translate3d(0, 0, 0); /* Reached meeting point */
     opacity: 1;
   }
-  85% {
-    transform: translate3d(240px, 0, 0) scale(1);
+  70% {
+    transform: translate3d(40px, 0, 0);
+    opacity: 1;
+  }
+  92% {
+    transform: translate3d(260px, 0, 0); /* Walking away to the right */
     opacity: 1;
   }
   100% {
-    transform: translate3d(255px, 0, 0) scale(0.9);
+    transform: translate3d(280px, 0, 0);
     opacity: 0;
   }
 }
 
-.animate-note-transfer {
-  animation: noteTransferMotion 5.5s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+.animate-s1-woman {
+  animation: s1WomanSequence 8.5s ease-in-out infinite;
   will-change: transform, opacity;
 }
 
-/* ── Scene 2: Rolling Coin Across Screen (Full Horizon Traversal) ── */
-@keyframes coinCrossRoll {
+/* Banknote Exchange Movement */
+@keyframes s1NoteExchange {
+  0%, 26% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.8);
+  }
+  32% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  38%, 56% {
+    opacity: 1;
+    transform: translate3d(46px, -10px, 0); /* Extended in man's hand */
+  }
+  64% {
+    opacity: 1;
+    transform: translate3d(115px, -10px, 0); /* Taken into woman's hand */
+  }
+  72%, 92% {
+    opacity: 1;
+    transform: translate3d(360px, -10px, 0); /* Moving away with woman */
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(380px, -10px, 0);
+  }
+}
+
+.animate-s1-note {
+  animation: s1NoteExchange 8.5s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SCENE 2: Rolling Coin → Man Notices, Bends Down, Picks It Up, Walks Away
+   Beat A (0-32%): Coin rolls across floor from left, slows to a stop
+   Beat B (20-40%): Man walks in, spots coin, stops in front of it
+   Beat C (40-62%): Man bends down, picks up coin from floor
+   Beat D (62-85%): Man stands up, inspects coin, pockets it, walks away
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Coin Rolling & Being Lifted */
+@keyframes s2CoinSequence {
   0% {
-    transform: translate3d(0, 0, 0) rotate(0deg);
+    transform: translate3d(-340px, 0, 0) rotate(0deg);
     opacity: 0;
   }
   8% {
     opacity: 1;
   }
-  75% {
+  32%, 46% {
+    transform: translate3d(0, 0, 0) rotate(1440deg); /* Resting on ground */
     opacity: 1;
   }
-  92% {
-    transform: translate3d(760px, 0, 0) rotate(2160deg);
+  56%, 66% {
+    transform: translate3d(0, -90px, 0) rotate(1500deg); /* Lifted into man's hand */
     opacity: 1;
+  }
+  72% {
+    transform: translate3d(15px, -85px, 0) rotate(1500deg); /* Slipped into pocket */
+    opacity: 0;
   }
   100% {
-    transform: translate3d(780px, -40px, 0) rotate(2300deg);
     opacity: 0;
   }
 }
 
-.animate-coin-cross-roll {
-  animation: coinCrossRoll 6.5s cubic-bezier(0.12, 0.75, 0.35, 1) infinite;
+.animate-s2-coin {
+  animation: s2CoinSequence 8.5s ease-out infinite;
   will-change: transform, opacity;
 }
 
-/* ── Scene 2: Realistic Passerby Bend to Pick Up Coin ── */
-@keyframes passerbyPickMotion {
-  0%, 15% {
-    transform: translate3d(100px, 0, 0);
-    opacity: 0;
-  }
-  25% {
-    transform: translate3d(0, 0, 0);
-    opacity: 1;
-  }
-  65% {
-    transform: translate3d(0, 0, 0);
-    opacity: 1;
-  }
-  85%, 100% {
-    transform: translate3d(-80px, 0, 0);
-    opacity: 0;
-  }
-}
-
-.animate-passerby-walk {
-  animation: passerbyPickMotion 6.5s cubic-bezier(0.16, 1, 0.3, 1) infinite;
-  will-change: transform, opacity;
-}
-
-/* ── Scene 3: Shop Counter Slide Payment ── */
-@keyframes coinCounterSlide {
-  0%, 20% {
-    transform: translate3d(160px, 0, 0);
-    opacity: 0;
-  }
-  30% {
-    opacity: 1;
-  }
-  55% {
-    transform: translate3d(0, 0, 0);
-    opacity: 1;
-  }
-  75% {
-    transform: translate3d(0, 0, 0);
-    opacity: 1;
-  }
-  85%, 100% {
-    transform: translate3d(-20px, 0, 0);
-    opacity: 0;
-  }
-}
-
-.animate-coin-counter-slide {
-  animation: coinCounterSlide 6s cubic-bezier(0.2, 0.9, 0.3, 1) infinite;
-  will-change: transform, opacity;
-}
-
-@keyframes productHandover {
-  0%, 45% {
-    transform: translate3d(0, 0, 0);
-    opacity: 0;
-  }
-  55% {
-    opacity: 1;
-  }
-  75% {
-    transform: translate3d(90px, 0, 0);
-    opacity: 1;
-  }
-  90%, 100% {
-    transform: translate3d(140px, 0, 0);
-    opacity: 0;
-  }
-}
-
-.animate-product-handover {
-  animation: productHandover 6s cubic-bezier(0.2, 0.9, 0.3, 1) infinite;
-  will-change: transform, opacity;
-}
-
-/* ── Scene 4: Realistic Bouncing Physics Coin ── */
-@keyframes coinPhysicsBounce {
+/* Man's Full Action (Enter → Spot → Bend → Pick Up → Stand → Walk Away) */
+@keyframes s2ManSequence {
   0% {
-    transform: translate3d(0, 0, 0) rotate(0deg);
-    opacity: 0;
-  }
-  6% {
-    opacity: 1;
-  }
-  /* Drop 1 to ground */
-  22% {
-    transform: translate3d(100px, 140px, 0) rotate(360deg);
-  }
-  /* Bounce 1 peak */
-  35% {
-    transform: translate3d(170px, 70px, 0) rotate(640deg);
-  }
-  /* Drop 2 to ground */
-  48% {
-    transform: translate3d(240px, 140px, 0) rotate(960deg);
-  }
-  /* Bounce 2 peak */
-  58% {
-    transform: translate3d(295px, 105px, 0) rotate(1200deg);
-  }
-  /* Drop 3 to ground */
-  68% {
-    transform: translate3d(350px, 140px, 0) rotate(1440deg);
-  }
-  /* Roll to child */
-  86% {
-    transform: translate3d(520px, 140px, 0) rotate(2160deg);
-    opacity: 1;
-  }
-  92% {
-    transform: translate3d(540px, 95px, 0) rotate(2280deg);
-    opacity: 1;
-  }
-  100% {
-    transform: translate3d(580px, 90px, 0) rotate(2400deg);
-    opacity: 0;
-  }
-}
-
-.animate-coin-physics-bounce {
-  animation: coinPhysicsBounce 6.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
-  will-change: transform, opacity;
-}
-
-/* ── Scene 4: Child Sprint Across to Catch ── */
-@keyframes childSprintCatch {
-  0%, 25% {
     transform: translate3d(180px, 0, 0);
     opacity: 0;
   }
-  38% {
+  12% {
     opacity: 1;
   }
-  68% {
-    transform: translate3d(0, 0, 0);
+  26%, 64% {
+    transform: translate3d(0, 0, 0); /* Stops directly by coin */
     opacity: 1;
   }
-  85% {
-    transform: translate3d(-30px, -8px, 0);
+  74% {
+    transform: translate3d(40px, 0, 0);
+    opacity: 1;
+  }
+  92% {
+    transform: translate3d(220px, 0, 0); /* Walking away */
     opacity: 1;
   }
   100% {
-    transform: translate3d(120px, 0, 0);
+    transform: translate3d(240px, 0, 0);
     opacity: 0;
   }
 }
 
-.animate-child-sprint {
-  animation: childSprintCatch 6.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+.animate-s2-man {
+  animation: s2ManSequence 8.5s ease-in-out infinite;
   will-change: transform, opacity;
 }
 
-/* ── Subtle Ambient Floating Sparkles ── */
-@keyframes ambientGlisten {
+/* Man's Bending Posture (Torso hinge & Arm reach) */
+@keyframes s2ManBendPose {
+  0%, 34% {
+    transform: translate3d(0, 0, 0) rotate(0deg); /* Standing upright */
+  }
+  44%, 54% {
+    transform: translate3d(-18px, 24px, 0) rotate(32deg); /* Bent down picking up */
+  }
+  62%, 100% {
+    transform: translate3d(0, 0, 0) rotate(0deg); /* Standing upright */
+  }
+}
+
+.animate-s2-man-torso {
+  animation: s2ManBendPose 8.5s ease-in-out infinite;
+  transform-origin: 65px 160px;
+  will-change: transform;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SCENE 3: Shop Purchase
+   Beat A (0-25%): Shop owner waiting behind counter; Product displayed
+   Beat B (20-45%): Customer approaches counter, inspects & takes product
+   Beat C (45-65%): Customer places coin payment on counter; Shopkeeper takes it
+   Beat D (65-90%): Customer leaves with product; Shopkeeper gives nod
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Customer Entering, Buying, and Leaving */
+@keyframes s3CustomerSequence {
+  0% {
+    transform: translate3d(240px, 0, 0);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  28%, 62% {
+    transform: translate3d(0, 0, 0); /* Standing at counter */
+    opacity: 1;
+  }
+  72% {
+    transform: translate3d(50px, 0, 0);
+    opacity: 1;
+  }
+  92% {
+    transform: translate3d(240px, 0, 0); /* Walking away */
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(260px, 0, 0);
+    opacity: 0;
+  }
+}
+
+.animate-s3-customer {
+  animation: s3CustomerSequence 8.5s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* Product Item Handover */
+@keyframes s3ProductSequence {
+  0%, 30% {
+    transform: translate3d(0, 0, 0); /* Resting on counter */
+    opacity: 1;
+  }
+  38%, 62% {
+    transform: translate3d(40px, -15px, 0); /* In customer's hand at counter */
+    opacity: 1;
+  }
+  72%, 92% {
+    transform: translate3d(280px, -15px, 0); /* Carried away with customer */
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(300px, -15px, 0);
+    opacity: 0;
+  }
+}
+
+.animate-s3-product {
+  animation: s3ProductSequence 8.5s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* Payment Coin Sliding Across Counter */
+@keyframes s3PaymentCoin {
+  0%, 42% {
+    opacity: 0;
+    transform: translate3d(45px, 0, 0);
+  }
+  46% {
+    opacity: 1;
+    transform: translate3d(45px, 0, 0); /* Placed on counter */
+  }
+  54%, 64% {
+    opacity: 1;
+    transform: translate3d(-35px, 0, 0); /* Slid across to shopkeeper */
+  }
+  70% {
+    opacity: 0;
+    transform: translate3d(-40px, -10px, 0); /* Taken into till */
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-s3-coin-pay {
+  animation: s3PaymentCoin 8.5s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SCENE 4: Wallet → Coin Drops & Bounces → Child Notices, Scoops & Runs
+   Beat A (0-20%): Man opens wallet
+   Beat B (18-45%): Coin slips out, drops, bounces 2x, and rolls across
+   Beat C (35-58%): Small boy spots rolling coin, stops and scoops it up
+   Beat D (58-85%): Boy holds coin up with joy, turns and runs off to right
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Parabolic Physics Bouncing Coin */
+@keyframes s4BouncingCoinSequence {
+  0%, 14% {
+    transform: translate3d(0, 0, 0) rotate(0deg); /* Inside wallet */
+    opacity: 0;
+  }
+  16% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotate(0deg); /* Slipping out */
+  }
+  /* Drop 1 to ground */
+  24% {
+    transform: translate3d(55px, 128px, 0) rotate(280deg);
+  }
+  /* Bounce 1 peak */
+  31% {
+    transform: translate3d(105px, 68px, 0) rotate(520deg);
+  }
+  /* Drop 2 to ground */
+  38% {
+    transform: translate3d(155px, 128px, 0) rotate(760deg);
+  }
+  /* Bounce 2 smaller peak */
+  44% {
+    transform: translate3d(190px, 102px, 0) rotate(980deg);
+  }
+  /* Land on ground */
+  49% {
+    transform: translate3d(225px, 128px, 0) rotate(1180deg);
+  }
+  /* Roll to boy's location */
+  56%, 60% {
+    transform: translate3d(340px, 128px, 0) rotate(1540deg);
+    opacity: 1;
+  }
+  /* Scooped up into boy's hands */
+  66%, 70% {
+    transform: translate3d(355px, 62px, 0) rotate(1540deg);
+    opacity: 1;
+  }
+  /* Running off with boy */
+  85%, 94% {
+    transform: translate3d(620px, 62px, 0) rotate(1540deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(650px, 62px, 0);
+    opacity: 0;
+  }
+}
+
+.animate-s4-bouncing-coin {
+  animation: s4BouncingCoinSequence 8.5s cubic-bezier(0.2, 0.7, 0.4, 1) infinite;
+  will-change: transform, opacity;
+}
+
+/* Small Boy Entering, Scooping, and Running Off */
+@keyframes s4BoySequence {
+  0% {
+    transform: translate3d(220px, 0, 0);
+    opacity: 0;
+  }
+  14% {
+    opacity: 1;
+  }
+  30%, 54% {
+    transform: translate3d(0, 0, 0); /* Stops directly where coin rolls */
+    opacity: 1;
+  }
+  64% {
+    transform: translate3d(25px, -6px, 0); /* Stands up excited */
+    opacity: 1;
+  }
+  86% {
+    transform: translate3d(270px, -6px, 0); /* Sprints away */
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(300px, -6px, 0);
+    opacity: 0;
+  }
+}
+
+.animate-s4-boy {
+  animation: s4BoySequence 8.5s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* Boy's Stooping Action to Scoop Coin */
+@keyframes s4BoyScoopPose {
+  0%, 36% {
+    transform: translate3d(0, 0, 0) rotate(0deg); /* Standing looking */
+  }
+  46%, 56% {
+    transform: translate3d(-14px, 20px, 0) rotate(26deg); /* Stooping down to ground */
+  }
+  64%, 100% {
+    transform: translate3d(0, 0, 0) rotate(0deg); /* Standing holding coin */
+  }
+}
+
+.animate-s4-boy-torso {
+  animation: s4BoyScoopPose 8.5s ease-in-out infinite;
+  transform-origin: 50px 110px;
+  will-change: transform;
+}
+
+/* Subtle sparkle burst */
+@keyframes sparkleBurst {
   0%, 100% {
-    transform: scale(0.65) rotate(0deg);
-    opacity: 0.15;
+    transform: scale(0.6) rotate(0deg);
+    opacity: 0.1;
   }
   50% {
     transform: scale(1.15) rotate(45deg);
-    opacity: 0.85;
+    opacity: 0.9;
   }
 }
 
-.animate-glisten {
-  animation: ambientGlisten 3s ease-in-out infinite;
-}
-
-/* ── Scene 0: Bills Aligning into Harmonious Stream ── */
-@keyframes billsHarmonize {
-  0% {
-    transform: translate3d(0, 0, 0) rotate(-12deg);
-    opacity: 0;
-  }
-  20% {
-    transform: translate3d(20px, -25px, 0) rotate(-6deg);
-    opacity: 0.7;
-  }
-  60% {
-    transform: translate3d(140px, -15px, 0) rotate(0deg);
-    opacity: 0.75;
-  }
-  85% {
-    transform: translate3d(320px, 10px, 0) rotate(0deg);
-    opacity: 0.5;
-  }
-  100% {
-    transform: translate3d(450px, 20px, 0) rotate(0deg);
-    opacity: 0;
-  }
-}
-
-.animate-bills-harmonize-1 {
-  animation: billsHarmonize 6s ease-in-out infinite;
-}
-
-.animate-bills-harmonize-2 {
-  animation: billsHarmonize 6s ease-in-out infinite 0.8s;
-}
-
-.animate-bills-harmonize-3 {
-  animation: billsHarmonize 6s ease-in-out infinite 1.6s;
-}
-
-/* ── Natural Walking Cycle Sway ── */
-@keyframes naturalStrideSway {
-  0%, 100% {
-    transform: translate3d(0, 0, 0);
-  }
-  25% {
-    transform: translate3d(0, -2.5px, 0) rotate(0.4deg);
-  }
-  50% {
-    transform: translate3d(0, 0, 0);
-  }
-  75% {
-    transform: translate3d(0, -2px, 0) rotate(-0.4deg);
-  }
-}
-
-.animate-natural-stride {
-  animation: naturalStrideSway 3.2s ease-in-out infinite;
+.animate-sparkle-burst {
+  animation: sparkleBurst 2.5s ease-in-out infinite;
 }
 
 /* ── Accessibility: Reduced Motion ── */
 @media (prefers-reduced-motion: reduce) {
   .lineart-scene-active,
   .lineart-scene-inactive,
-  .lineart-flow-dash,
-  .lineart-flow-glow,
-  .animate-note-transfer,
-  .animate-coin-cross-roll,
-  .animate-passerby-walk,
-  .animate-coin-counter-slide,
-  .animate-product-handover,
-  .animate-coin-physics-bounce,
-  .animate-child-sprint,
-  .animate-glisten,
-  .animate-bills-harmonize-1,
-  .animate-bills-harmonize-2,
-  .animate-bills-harmonize-3,
-  .animate-natural-stride {
+  .animate-s1-man-arm,
+  .animate-s1-woman,
+  .animate-s1-note,
+  .animate-s2-coin,
+  .animate-s2-man,
+  .animate-s2-man-torso,
+  .animate-s3-customer,
+  .animate-s3-product,
+  .animate-s3-coin-pay,
+  .animate-s4-bouncing-coin,
+  .animate-s4-boy,
+  .animate-s4-boy-torso,
+  .animate-sparkle-burst {
     animation: none !important;
     transition: none !important;
     transform: none !important;
