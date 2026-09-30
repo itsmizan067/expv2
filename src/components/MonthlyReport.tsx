@@ -210,25 +210,34 @@ export const MonthlyReport: React.FC<MonthlyReportProps> = ({ transactions, user
         )}
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-slate-100">
-        <div className="bg-white p-4 text-center">
-          <div className="text-[11px] text-slate-500 font-semibold mb-1 flex items-center justify-center space-x-1">
-            <TrendingUp className="w-3 h-3 text-emerald-500" /><span>Total Cash In</span>
+      {/* Summary Cards — Side-by-side on all screens including mobile */}
+      <div className="grid grid-cols-3 gap-px bg-slate-100 border-b border-slate-100">
+        <div className="bg-white p-2.5 sm:p-4 text-center min-w-0">
+          <div className="text-[10px] sm:text-xs text-slate-500 font-semibold mb-1 flex items-center justify-center space-x-1">
+            <TrendingUp className="w-3 h-3 text-emerald-500 shrink-0" />
+            <span className="truncate">Cash In</span>
           </div>
-          <div className="text-lg font-extrabold text-emerald-600">{fmt(totalIn, currency)}</div>
+          <div className="text-sm sm:text-lg font-extrabold text-emerald-600 truncate">
+            {fmt(totalIn, currency)}
+          </div>
         </div>
-        <div className="bg-white p-4 text-center">
-          <div className="text-[11px] text-slate-500 font-semibold mb-1 flex items-center justify-center space-x-1">
-            <TrendingDown className="w-3 h-3 text-rose-500" /><span>Total Cash Out</span>
+        <div className="bg-white p-2.5 sm:p-4 text-center min-w-0">
+          <div className="text-[10px] sm:text-xs text-slate-500 font-semibold mb-1 flex items-center justify-center space-x-1">
+            <TrendingDown className="w-3 h-3 text-rose-500 shrink-0" />
+            <span className="truncate">Cash Out</span>
           </div>
-          <div className="text-lg font-extrabold text-rose-600">{fmt(totalOut, currency)}</div>
+          <div className="text-sm sm:text-lg font-extrabold text-rose-600 truncate">
+            {fmt(totalOut, currency)}
+          </div>
         </div>
-        <div className="bg-white p-4 text-center">
-          <div className="text-[11px] text-slate-500 font-semibold mb-1 flex items-center justify-center space-x-1">
-            <Wallet className="w-3 h-3 text-violet-500" /><span>Net Change</span>
+        <div className="bg-white p-2.5 sm:p-4 text-center min-w-0">
+          <div className="text-[10px] sm:text-xs text-slate-500 font-semibold mb-1 flex items-center justify-center space-x-1">
+            <Wallet className="w-3 h-3 text-violet-500 shrink-0" />
+            <span className="truncate">Net Change</span>
           </div>
-          <div className={`text-lg font-extrabold ${netChange >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{netChange >= 0 ? '+' : ''}{fmt(netChange, currency)}</div>
+          <div className={`text-sm sm:text-lg font-extrabold truncate ${netChange >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+            {netChange >= 0 ? '+' : ''}{fmt(netChange, currency)}
+          </div>
         </div>
       </div>
 

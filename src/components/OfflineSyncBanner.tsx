@@ -35,38 +35,38 @@ export const OfflineSyncBanner: React.FC<OfflineSyncBannerProps> = ({
         <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
           
           {/* Status message */}
-          <div className="flex items-center space-x-2 text-slate-300">
+          <div className="flex items-center justify-center sm:justify-start text-center sm:text-left space-x-2 text-slate-300 w-full sm:w-auto">
             {!isOnline ? (
-              <div className="flex items-center space-x-1.5 text-amber-400 font-medium">
+              <div className="flex items-center justify-center sm:justify-start space-x-1.5 text-amber-400 font-medium">
                 <WifiOff className="w-4 h-4 shrink-0" />
                 <span>
-                  <strong>Offline Mode:</strong> You are currently disconnected. All records are saved securely on your phone/device.
+                  <strong>Offline Mode:</strong> You are currently disconnected. All records are saved securely on your device.
                 </span>
               </div>
             ) : isSyncing ? (
-              <div className="flex items-center space-x-1.5 text-sky-400 font-medium">
+              <div className="flex items-center justify-center sm:justify-start space-x-1.5 text-sky-400 font-medium">
                 <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
                 <span>Syncing offline records to the cloud database...</span>
               </div>
             ) : pendingCount > 0 ? (
-              <div className="flex items-center space-x-1.5 text-amber-300 font-medium">
+              <div className="flex items-center justify-center sm:justify-start space-x-1.5 text-amber-300 font-medium">
                 <CloudUpload className="w-4 h-4 shrink-0 text-amber-400" />
                 <span>
                   <strong>{pendingCount}</strong> pending local modification{pendingCount > 1 ? 's' : ''} waiting for cloud sync.
                 </span>
               </div>
             ) : (
-              <div className="flex items-center space-x-1.5 text-emerald-400 font-medium">
+              <div className="flex items-center justify-center sm:justify-start space-x-1.5 text-emerald-400 font-medium">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>
-                  Cloud Synced • Last verified at <span className="text-slate-300">{formatTime(lastSyncTime)}</span>
+                  Last Cloud Synced at <span className="text-slate-200 font-semibold">{formatTime(lastSyncTime)}</span>
                 </span>
               </div>
             )}
           </div>
 
           {/* Sync actions & timestamp */}
-          <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end">
+          <div className="flex items-center space-x-3 w-full sm:w-auto justify-center sm:justify-end">
             {lastSyncResult?.status === 'error' && isOnline && (
               <span className="text-rose-400 flex items-center space-x-1 text-[11px]">
                 <AlertCircle className="w-3.5 h-3.5" />
@@ -79,7 +79,7 @@ export const OfflineSyncBanner: React.FC<OfflineSyncBannerProps> = ({
                 id="offline-sync-now-btn"
                 disabled={isSyncing}
                 onClick={onSyncNow}
-                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition disabled:opacity-50"
+                className="px-3.5 py-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition disabled:opacity-50 shadow-xs"
               >
                 <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin text-sky-400' : ''}`} />
                 <span>{isSyncing ? 'Syncing...' : 'Sync Cloud Now'}</span>
