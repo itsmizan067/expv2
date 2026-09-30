@@ -446,7 +446,7 @@ async function loadFromSupabase(): Promise<DatabaseSchema | null> {
       type: t.type,
       amount: Number(t.amount),
       category: t.category,
-      date: t.date,
+      date: typeof t.date === 'string' ? t.date.slice(0, 10) : String(t.date || '').slice(0, 10),
       paymentMethod: t.payment_method,
       note: t.note,
       tags: Array.isArray(t.tags) ? t.tags : [],

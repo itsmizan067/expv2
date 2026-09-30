@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Download, Upload, FileSpreadsheet, FileJson, CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, Wallet } from 'lucide-react';
 import { Transaction, User, BackupPayload } from '../types';
+import { formatLocalDate } from '../lib/dateUtils';
 
 interface ExportImportModalProps {
   isOpen: boolean;
@@ -58,7 +59,7 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `pocket_balance_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `pocket_balance_export_${formatLocalDate()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -83,7 +84,7 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
     downloadAnchor.setAttribute('href', dataStr);
     downloadAnchor.setAttribute(
       'download',
-      `pocket_balance_backup_${currentUser?.email?.split('@')[0] || 'account'}_${new Date().toISOString().slice(0, 10)}.json`
+      `pocket_balance_backup_${currentUser?.email?.split('@')[0] || 'account'}_${formatLocalDate()}.json`
     );
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
@@ -141,7 +142,7 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
           type: item.type === 'income' ? 'income' : 'expense',
           amount: Math.abs(Number(item.amount)) || 0,
           category: item.category || 'Miscellaneous',
-          date: item.date || new Date().toISOString().slice(0, 10),
+          date: item.date || formatLocalDate(),
           paymentMethod: item.paymentMethod || 'cash',
           note: item.note || '',
           tags: Array.isArray(item.tags) ? item.tags : [],

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Transaction } from '../types';
 import { CURRENCY_SYMBOLS, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../lib/constants';
+import { getLocalMonthPrefix } from '../lib/dateUtils';
 import { PieChart, BarChart3, Layers, Calendar, TrendingDown, TrendingUp } from 'lucide-react';
 
 interface ChartsViewProps {
@@ -19,7 +20,7 @@ export const ChartsView: React.FC<ChartsViewProps> = ({
   const sym = CURRENCY_SYMBOLS[currency] || '$';
 
   // Filter transactions based on timeframe
-  const currentMonthPrefix = new Date().toISOString().slice(0, 7);
+  const currentMonthPrefix = getLocalMonthPrefix();
   const filteredTxs = chartTimeframe === 'month'
     ? transactions.filter(t => t.date.startsWith(currentMonthPrefix) && !t.isDeleted)
     : transactions.filter(t => !t.isDeleted);

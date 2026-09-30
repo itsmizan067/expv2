@@ -11,6 +11,7 @@ import {
   Crown,
 } from 'lucide-react';
 import { Transaction, User } from '../types';
+import { formatLocalDate } from '../lib/dateUtils';
 
 interface MonthlyReportProps {
   transactions: Transaction[];
@@ -77,35 +78,35 @@ export const MonthlyReport: React.FC<MonthlyReportProps> = ({ transactions, user
     if (viewMode === 'month') {
       const count = getDaysInMonth(selectedYear, selectedMonth);
       for (let d = 1; d <= count; d++) {
-        days.push(new Date(selectedYear, selectedMonth, d));
+        days.push(new Date(selectedYear, selectedMonth, d, 12, 0, 0));
       }
     } else {
       // 7 days starting from selectedWeek (Monday)
       for (let i = 0; i < 7; i++) {
         const d = new Date(selectedWeek);
         d.setDate(d.getDate() + i);
+        d.setHours(12, 0, 0, 0);
         days.push(d);
       }
     }
 
     let runningBalance = user.openingBalance || 0;
     // Compute balance before the period using all prior transactions
-    const periodStart = days[0];
+    const periodStartStr = days.length > 0 ? formatLocalDate(days[0]) : '';
     transactions.forEach(t => {
       if (t.isDeleted) return;
-      const td = new Date(t.date);
-      if (td < periodStart) {
+      if (t.date < periodStartStr) {
         runningBalance += t.type === 'income' ? t.amount : -t.amount;
       }
     });
 
     return days.map(day => {
-      const dateStr = day.toISOString().slice(0, 10);
+      const dateStr = formatLocalDate(day);
       const dayTxs = transactions.filter(t => !t.isDeleted && t.date === dateStr);
       const cashIn = dayTxs.filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0);
       const cashOut = dayTxs.filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0);
       runningBalance += cashIn - cashOut;
-      return { date: day, cashIn, cashOut, balance: runningBalance, txCount: dayTxs.length };
+      return { date: day, dateStr, cashIn, cashOut, balance: runningBalance, txCount: dayTxs.length };
     });
   }, [transactions, viewMode, selectedYear, selectedMonth, selectedWeek]);
 
@@ -255,7 +256,7 @@ export const MonthlyReport: React.FC<MonthlyReportProps> = ({ transactions, user
           </thead>
           <tbody className="divide-y divide-slate-50">
             {rows.map((row, i) => {
-              const isToday = row.date.toISOString().slice(0, 10) === today.toISOString().slice(0, 10);
+              const isToday = row.dateStr === formatLocalDate(today);
               const net = row.cashIn - row.cashOut;
               const hasActivity = row.cashIn > 0 || row.cashOut > 0;
               return (

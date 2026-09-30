@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Transaction, TransactionType, PaymentMethod } from '../types';
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, PAYMENT_METHODS, CURRENCY_SYMBOLS } from '../lib/constants';
+import { formatLocalDate } from '../lib/dateUtils';
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -31,19 +32,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   defaultType = 'expense',
   currency,
 }) => {
-  const getLocalDateString = () => {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
   const [type, setType] = useState<TransactionType>(defaultType);
   const [amount, setAmount] = useState<string>('');
   const [category, setCategory] = useState<string>('');
   const [customCategory, setCustomCategory] = useState<string>('');
-  const [date, setDate] = useState<string>(getLocalDateString());
+  const [date, setDate] = useState<string>(formatLocalDate());
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [note, setNote] = useState<string>('');
   const [tagInput, setTagInput] = useState<string>('');

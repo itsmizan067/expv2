@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { User, Transaction, SyncResult } from './types';
 import { OfflineStorageManager } from './lib/offlineManager';
 import { getStoredUser, setStoredUser, updateProfile } from './lib/api';
+import { formatLocalDate, getLocalMonthPrefix } from './lib/dateUtils';
 import { Header } from './components/Header';
 import { OfflineSyncBanner } from './components/OfflineSyncBanner';
 import { InstallPrompt } from './components/InstallPrompt';
@@ -238,7 +239,7 @@ export default function App() {
         type: txData.type || 'expense',
         amount: Number(txData.amount) || 0,
         category: txData.category || 'Miscellaneous',
-        date: txData.date || new Date().toISOString().slice(0, 10),
+        date: txData.date || formatLocalDate(),
         paymentMethod: txData.paymentMethod || 'cash',
         note: txData.note || '',
         tags: txData.tags || [],
@@ -326,7 +327,7 @@ export default function App() {
   const stats = useMemo(() => {
     let inc = 0;
     let exp = 0;
-    const currentMonthPrefix = new Date().toISOString().slice(0, 7);
+    const currentMonthPrefix = getLocalMonthPrefix();
     let monthInc = 0;
     let monthExp = 0;
     const opening = currentUser?.openingBalance || 0;
