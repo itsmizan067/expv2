@@ -269,13 +269,23 @@ export default function App() {
     if (isOnline) triggerSync();
   };
 
-  const handleSaveBudgetPrefs = async (budget: number, currency: string) => {
+  const handleSaveBudgetPrefs = async (budget: number, currency: string, openingBalance?: number) => {
     if (!currentUser) return;
+    const newOpening = openingBalance !== undefined ? openingBalance : (currentUser.openingBalance || 0);
     try {
-      const updated = await updateProfile(currentUser.id, { monthlyBudgetLimit: budget, currency });
+      const updated = await updateProfile(currentUser.id, {
+        monthlyBudgetLimit: budget,
+        currency,
+        openingBalance: newOpening,
+      });
       setCurrentUser(updated);
     } catch {
-      const updatedLocal = { ...currentUser, monthlyBudgetLimit: budget, currency };
+      const updatedLocal = {
+        ...currentUser,
+        monthlyBudgetLimit: budget,
+        currency,
+        openingBalance: newOpening,
+      };
       setCurrentUser(updatedLocal);
       setStoredUser(updatedLocal);
     }
@@ -288,6 +298,7 @@ export default function App() {
     const currentMonthPrefix = new Date().toISOString().slice(0, 7);
     let monthInc = 0;
     let monthExp = 0;
+    const opening = currentUser?.openingBalance || 0;
 
     transactions.forEach(t => {
       if (t.isDeleted) return;
@@ -300,19 +311,21 @@ export default function App() {
       }
     });
 
-    const net = inc - exp;
-    const rate = inc > 0 ? (Math.max(0, net) / inc) * 100 : 0;
+    const net = opening + inc - exp;
+    const totalFunds = opening + inc;
+    const rate = totalFunds > 0 ? (Math.max(0, net) / totalFunds) * 100 : 0;
 
     return {
       totalIncome: inc,
       totalExpense: exp,
       netBalance: net,
+      openingBalance: opening,
       savingsRate: rate,
       transactionCount: transactions.filter(t => !t.isDeleted).length,
       thisMonthIncome: monthInc,
       thisMonthExpense: monthExp,
     };
-  }, [transactions]);
+  }, [transactions, currentUser?.openingBalance]);
 
   // Ensure admin users always land on the admin tab
   useEffect(() => {
@@ -434,6 +447,7 @@ export default function App() {
                   thisMonthIncome={stats.thisMonthIncome}
                   thisMonthExpense={stats.thisMonthExpense}
                   netBalance={stats.netBalance}
+                  openingBalance={stats.openingBalance}
                   savingsRate={stats.savingsRate}
                   monthlyBudgetLimit={currentUser.monthlyBudgetLimit || 3200}
                   currency={currentUser.currency || 'USD'}
@@ -597,6 +611,7 @@ export default function App() {
         onClose={() => setIsBudgetModalOpen(false)}
         monthlyBudgetLimit={currentUser.monthlyBudgetLimit || 3200}
         currentCurrency={currentUser.currency || 'USD'}
+        openingBalance={currentUser.openingBalance || 0}
         onSave={handleSaveBudgetPrefs}
       />
 

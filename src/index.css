@@ -1,1 +1,31 @@
 @import "tailwindcss";
+
+@keyframes signal-gentle-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: drop-shadow(0 0 1px rgba(52, 211, 153, 0.4));
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(0.96);
+    filter: drop-shadow(0 0 5px rgba(52, 211, 153, 0.7));
+  }
+}
+
+@keyframes signal-offline-gentle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+
+.animate-signal-online {
+  animation: signal-gentle-pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-signal-offline {
+  animation: signal-offline-gentle 3.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

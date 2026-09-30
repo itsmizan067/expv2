@@ -226,24 +226,38 @@ export const LineArtBackground: React.FC<LineArtBackgroundProps> = ({ className 
           <path d="M 0 0 C 35 -15, 60 -25, 90 -30" stroke="url(#roseExpenseGrad)" strokeWidth="1.3" strokeDasharray="3 4" />
 
           {/* Abstract Expense Glyphs on Peripheral Edges */}
-          {/* 1. Housing / Rent Icon Outline */}
-          <g transform="translate(85, 42)" opacity="0.65">
-            <polygon points="10,0 2,7 18,7" stroke={strokeRose} strokeWidth="1.2" fill="none" />
-            <rect x="4" y="7" width="12" height="10" stroke={strokeRose} strokeWidth="1.2" fill="none" />
+          {/* 1. Sleek Asset / Real Estate Blueprint Node */}
+          <g transform="translate(85, 36)" opacity="0.75">
+            <path
+              d="M 2 18 L 10 4 L 18 18 Z"
+              stroke={strokeRose}
+              strokeWidth="1.2"
+              fill="none"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M 6 18 L 6 10 L 14 10 L 14 18"
+              stroke={strokeRose}
+              strokeWidth="1"
+              fill="none"
+              strokeLinecap="round"
+            />
+            <circle cx="10" cy="7.5" r="1" fill={strokeRose} />
           </g>
 
-          {/* 2. Shopping / Living Icon Outline */}
-          <g transform="translate(95, -38)" opacity="0.65">
-            <rect x="0" y="5" width="16" height="12" rx="2" stroke={strokeRose} strokeWidth="1.2" fill="none" />
-            <path d="M 4 5 C 4 1, 12 1, 12 5" stroke={strokeRose} strokeWidth="1.1" fill="none" />
+          {/* 2. Sleek Commerce / Lifestyle Vector Glyph */}
+          <g transform="translate(95, -42)" opacity="0.75">
+            <rect x="1" y="6" width="16" height="12" rx="3" stroke={strokeRose} strokeWidth="1.2" fill="none" />
+            <path d="M 5 6 C 5 2, 13 2, 13 6" stroke={strokeRose} strokeWidth="1.2" fill="none" strokeLinecap="round" />
+            <circle cx="9" cy="12" r="1.5" stroke={strokeRose} strokeWidth="1" fill="none" />
           </g>
 
-          {/* Moving Expense Particles Drifting Away & Fading */}
+          {/* Moving Expense Particles Drifting Away & Fading with Glow */}
           <g className="animate-expense-drift-1">
-            <circle cx="0" cy="0" r="4" fill="rgba(244, 63, 94, 0.4)" stroke={strokeRose} strokeWidth="1.2" />
+            <circle cx="0" cy="0" r="3.5" fill="rgba(244, 63, 94, 0.45)" stroke={strokeRose} strokeWidth="1.2" filter="url(#roseGlow)" />
           </g>
           <g className="animate-expense-drift-2">
-            <circle cx="0" cy="0" r="3.5" fill="rgba(244, 63, 94, 0.4)" stroke={strokeRose} strokeWidth="1.2" />
+            <circle cx="0" cy="0" r="3" fill="rgba(244, 63, 94, 0.35)" stroke={strokeRose} strokeWidth="1" />
           </g>
         </g>
 

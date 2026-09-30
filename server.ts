@@ -311,7 +311,7 @@ async function startServer() {
 
   // Register
   app.post('/api/auth/register', (req, res) => {
-    const { name, email, password, currency, monthlyBudgetLimit } = req.body;
+    const { name, email, password, currency, monthlyBudgetLimit, openingBalance } = req.body;
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Name, email, and password are required' });
     }
@@ -344,6 +344,7 @@ async function startServer() {
       totalLogins: 0,
       currency: currency || 'USD',
       monthlyBudgetLimit: Number(monthlyBudgetLimit) || 3000,
+      openingBalance: Number(openingBalance) || 0,
       plan: 'trial',
       planStatus: 'active',
       trialEndsAt: trialEnd,
@@ -439,7 +440,7 @@ async function startServer() {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { name, currency, monthlyBudgetLimit, phone, profilePicture } = req.body;
+    const { name, currency, monthlyBudgetLimit, openingBalance, phone, profilePicture } = req.body;
     const db = readDb();
     const userIndex = db.users.findIndex(u => u.id === userId);
 
@@ -451,6 +452,9 @@ async function startServer() {
     if (currency) db.users[userIndex].currency = currency;
     if (monthlyBudgetLimit !== undefined) {
       db.users[userIndex].monthlyBudgetLimit = Number(monthlyBudgetLimit);
+    }
+    if (openingBalance !== undefined) {
+      db.users[userIndex].openingBalance = Number(openingBalance) || 0;
     }
     if (phone !== undefined) db.users[userIndex].phone = phone.trim();
     if (profilePicture !== undefined) db.users[userIndex].profilePicture = profilePicture;

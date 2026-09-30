@@ -15,6 +15,7 @@ export interface User {
   totalLogins: number;
   currency?: string;
   monthlyBudgetLimit?: number;
+  openingBalance?: number;
   phone?: string;
   profilePicture?: string; // base64 data URL
   // Subscription

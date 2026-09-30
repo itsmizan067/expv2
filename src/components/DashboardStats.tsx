@@ -18,6 +18,7 @@ interface DashboardStatsProps {
   thisMonthIncome?: number;
   thisMonthExpense?: number;
   netBalance: number;
+  openingBalance?: number;
   savingsRate: number;
   monthlyBudgetLimit: number;
   currency: string;
@@ -32,6 +33,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
   thisMonthIncome,
   thisMonthExpense,
   netBalance,
+  openingBalance = 0,
   savingsRate,
   monthlyBudgetLimit,
   currency,
@@ -73,9 +75,30 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
             <div className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${netBalance >= 0 ? 'text-slate-900' : 'text-rose-600'}`}>
               {sym}{formatAmount(netBalance)}
             </div>
-            <p className="text-xs text-slate-500 mt-1 flex items-center space-x-1">
-              <span>{netBalance >= 0 ? 'Surplus Available' : 'Deficit / Overdrawn'}</span>
-            </p>
+            <div className="mt-2 flex items-center justify-between text-xs gap-1">
+              <span className="text-slate-500 truncate">
+                {netBalance >= 0 ? 'Available in Hand' : 'Deficit / Overdrawn'}
+              </span>
+              {openingBalance && openingBalance > 0 ? (
+                <button
+                  id="dashboard-adjust-opening-btn"
+                  onClick={onOpenBudget}
+                  title="Click to adjust Opening Balance"
+                  className="text-[11px] font-semibold text-slate-600 hover:text-emerald-700 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-md transition flex items-center space-x-1 shrink-0"
+                >
+                  <span>Init: {sym}{formatAmount(openingBalance)}</span>
+                </button>
+              ) : (
+                <button
+                  id="dashboard-set-opening-btn"
+                  onClick={onOpenBudget}
+                  title="Set your starting cash in hand"
+                  className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline flex items-center space-x-0.5 shrink-0"
+                >
+                  <span>+ Set Opening Cash</span>
+                </button>
+              )}
+            </div>
           </div>
           <div className={`h-1 absolute bottom-0 left-0 right-0 ${netBalance >= 0 ? 'bg-emerald-500' : 'bg-rose-500'}`} />
         </div>

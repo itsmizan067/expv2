@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Sliders, DollarSign, Check, Globe } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Sliders, Check, Wallet } from 'lucide-react';
 import { CURRENCY_SYMBOLS } from '../lib/constants';
 
 interface BudgetModalProps {
@@ -7,7 +7,8 @@ interface BudgetModalProps {
   onClose: () => void;
   monthlyBudgetLimit: number;
   currentCurrency: string;
-  onSave: (budget: number, currency: string) => void;
+  openingBalance?: number;
+  onSave: (budget: number, currency: string, openingBalance: number) => void;
 }
 
 export const BudgetModal: React.FC<BudgetModalProps> = ({
@@ -15,37 +16,54 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
   onClose,
   monthlyBudgetLimit,
   currentCurrency,
+  openingBalance = 0,
   onSave,
 }) => {
   const [budget, setBudget] = useState<string>(monthlyBudgetLimit.toString());
   const [currency, setCurrency] = useState<string>(currentCurrency || 'USD');
+  const [openBalance, setOpenBalance] = useState<string>(openingBalance.toString());
+
+  useEffect(() => {
+    if (isOpen) {
+      setBudget(monthlyBudgetLimit.toString());
+      setCurrency(currentCurrency || 'USD');
+      setOpenBalance((openingBalance || 0).toString());
+    }
+  }, [isOpen, monthlyBudgetLimit, currentCurrency, openingBalance]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const num = parseFloat(budget);
-    onSave(isNaN(num) ? 3000 : num, currency);
+    const numBudget = parseFloat(budget);
+    const numOpening = parseFloat(openBalance);
+    onSave(
+      isNaN(numBudget) ? 3000 : numBudget,
+      currency,
+      isNaN(numOpening) ? 0 : Math.max(0, numOpening)
+    );
     onClose();
   };
 
+  const sym = CURRENCY_SYMBOLS[currency] || '$';
+
   return (
     <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+      <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
         
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2.5">
             <div className="p-2 rounded-xl bg-slate-100 text-slate-700">
               <Sliders className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">Budget & Currency Preferences</h3>
-              <p className="text-xs text-slate-500">Configure monthly targets and currency display</p>
+              <h3 className="text-base font-bold text-slate-900">Budget & Financial Settings</h3>
+              <p className="text-xs text-slate-500">Configure starting cash, targets, and currency</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100"
+            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition"
           >
             <X className="w-5 h-5" />
           </button>
@@ -53,6 +71,37 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           
+          {/* Opening Cash / Starting Balance */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Opening Balance
+              </label>
+              <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center space-x-1">
+                <Wallet className="w-3 h-3 text-emerald-600" />
+                <span>Cash in Hand</span>
+              </span>
+            </div>
+            <div className="relative">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
+                {sym}
+              </span>
+              <input
+                id="opening-balance-input"
+                type="number"
+                step="0.01"
+                min="0"
+                value={openBalance}
+                onChange={e => setOpenBalance(e.target.value)}
+                placeholder="0.00"
+                className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Initial money in your pocket or bank balance when you started using this app.
+            </p>
+          </div>
+
           {/* Monthly Budget Cap */}
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -60,7 +109,7 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
             </label>
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
-                {CURRENCY_SYMBOLS[currency] || '$'}
+                {sym}
               </span>
               <input
                 id="budget-limit-input"
@@ -70,7 +119,7 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
                 value={budget}
                 onChange={e => setBudget(e.target.value)}
                 required
-                className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
               />
             </div>
             <p className="text-[11px] text-slate-500 mt-1">

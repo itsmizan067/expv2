@@ -64,6 +64,7 @@ export async function registerUser(payload: {
   password: string;
   currency?: string;
   monthlyBudgetLimit?: number;
+  openingBalance?: number;
 }): Promise<{ user: User; message: string }> {
   const res = await fetch(`${API_BASE}/auth/register`, {
     method: 'POST',

@@ -186,21 +186,17 @@ export const Header: React.FC<HeaderProps> = ({
                 id="header-network-sync-btn"
                 onClick={onManualSync}
                 title={isOnline ? 'Online · Click to manually sync changes' : 'Offline · All records saving locally'}
-                className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all active:scale-95 shrink-0 shadow-xs ${
+                className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all active:scale-95 shrink-0 ${
                   isOnline
                     ? isSyncing
-                      ? 'bg-sky-950/70 text-sky-300 border-sky-600/40'
-                      : 'bg-emerald-950/60 text-emerald-300 border-emerald-600/40 hover:bg-emerald-900/60'
-                    : 'bg-rose-950/70 text-rose-300 border-rose-600/50'
+                      ? 'bg-sky-500/10 text-sky-300 border-sky-500/30'
+                      : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25 hover:bg-emerald-500/20'
+                    : 'bg-rose-500/10 text-rose-300 border-rose-500/30 hover:bg-rose-500/20'
                 }`}
               >
                 {isOnline ? (
                   <>
-                    <span className="relative flex h-2 w-2 shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
-                    </span>
-                    <Wifi className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <Wifi className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-signal-online" />
                     <span className="text-[11px] font-semibold text-emerald-300">Online</span>
                     {pendingCount > 0 && (
                       <span className="px-1.5 py-0.2 bg-amber-400 text-slate-950 text-[10px] font-bold rounded-full">
@@ -213,8 +209,7 @@ export const Header: React.FC<HeaderProps> = ({
                   </>
                 ) : (
                   <>
-                    <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
-                    <WifiOff className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                    <WifiOff className="w-3.5 h-3.5 text-rose-400 shrink-0 animate-signal-offline" />
                     <span className="text-[11px] font-semibold text-rose-300">Offline</span>
                     {pendingCount > 0 && (
                       <span className="px-1.5 py-0.2 bg-amber-400 text-slate-950 text-[10px] font-bold rounded-full">
@@ -336,7 +331,7 @@ export const Header: React.FC<HeaderProps> = ({
                           className="w-full px-4 py-2 text-left text-slate-300 hover:text-white hover:bg-slate-800/80 flex items-center space-x-2.5 transition"
                         >
                           <Sliders className="w-4 h-4 text-sky-400" />
-                          <span>Budget & Currency</span>
+                          <span>Budget & Opening Balance</span>
                         </button>
                       )}
 

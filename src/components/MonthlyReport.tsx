@@ -88,7 +88,7 @@ export const MonthlyReport: React.FC<MonthlyReportProps> = ({ transactions, user
       }
     }
 
-    let runningBalance = 0;
+    let runningBalance = user.openingBalance || 0;
     // Compute balance before the period using all prior transactions
     const periodStart = days[0];
     transactions.forEach(t => {
