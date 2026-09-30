@@ -3,8 +3,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import crypto from 'crypto';
+import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { User, ActivityLog, Transaction, SyncQueueItem, UserRole, AccountStatus, PaymentRequest } from './src/types';
+
+dotenv.config();
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 
@@ -21,6 +25,27 @@ const DB_TEMP_FILE = path.join(DATA_DIR, 'db.json.tmp');
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// ==========================================
+// SUPABASE CLOUD PERSISTENCE ADAPTER
+// ==========================================
+
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://taesrkcpqujhkwvfsmke.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+
+let supabase: SupabaseClient | null = null;
+if (SUPABASE_URL && SUPABASE_KEY) {
+  try {
+    supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { persistSession: false },
+    });
+    console.log('⚡ Supabase Client initialized successfully for project:', SUPABASE_URL);
+  } catch (err) {
+    console.error('Failed to initialize Supabase client:', err);
+  }
+} else {
+  console.log('ℹ️ Running in local JSON storage mode (SUPABASE_KEY not set).');
 }
 
 // ==========================================
@@ -263,6 +288,225 @@ function writeDb(data: DatabaseSchema) {
       console.error('Critical failure writing database directly:', directErr);
     }
   }
+
+  // Real-time asynchronous cloud sync to Supabase (if configured)
+  triggerSupabaseSync(data);
+}
+
+// Debounced background sync to Supabase
+let supabaseSyncTimeout: NodeJS.Timeout | null = null;
+let pendingSupabaseDb: DatabaseSchema | null = null;
+
+function triggerSupabaseSync(data: DatabaseSchema) {
+  if (!supabase) return;
+  pendingSupabaseDb = data;
+  if (supabaseSyncTimeout) clearTimeout(supabaseSyncTimeout);
+  supabaseSyncTimeout = setTimeout(async () => {
+    if (!pendingSupabaseDb) return;
+    const toSync = pendingSupabaseDb;
+    pendingSupabaseDb = null;
+    await syncAllToSupabase(toSync);
+  }, 300);
+}
+
+async function syncAllToSupabase(db: DatabaseSchema) {
+  if (!supabase) return;
+  try {
+    // 1. Sync Users
+    if (db.users.length > 0) {
+      const userRows = db.users.map(u => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        password_hash: u.passwordHash,
+        role: u.role,
+        status: u.status,
+        created_at: u.createdAt,
+        last_login_at: u.lastLoginAt,
+        last_active_at: u.lastActiveAt,
+        total_logins: u.totalLogins,
+        currency: u.currency || 'USD',
+        monthly_budget_limit: u.monthlyBudgetLimit || 0,
+        opening_balance: u.openingBalance || 0,
+        phone: u.phone || '',
+        profile_picture: u.profilePicture || '',
+        plan: u.plan || 'trial',
+        plan_status: u.planStatus || 'active',
+        trial_ends_at: u.trialEndsAt,
+        plan_expires_at: u.planExpiresAt,
+      }));
+      const { error: userErr } = await supabase.from('users').upsert(userRows, { onConflict: 'id' });
+      if (userErr) console.warn('Supabase users upsert notice:', userErr.message);
+    }
+
+    // 2. Sync Transactions
+    if (db.transactions.length > 0) {
+      const txRows = db.transactions.map(t => ({
+        id: t.id,
+        user_id: t.userId,
+        type: t.type,
+        amount: t.amount,
+        category: t.category,
+        date: t.date,
+        payment_method: t.paymentMethod,
+        note: t.note || '',
+        tags: t.tags || [],
+        created_at: t.createdAt,
+        updated_at: t.updatedAt,
+        is_deleted: t.isDeleted || false,
+      }));
+      const { error: txErr } = await supabase.from('transactions').upsert(txRows, { onConflict: 'id' });
+      if (txErr) console.warn('Supabase transactions upsert notice:', txErr.message);
+    }
+
+    // 3. Sync Payment Requests
+    if (db.paymentRequests && db.paymentRequests.length > 0) {
+      const payRows = db.paymentRequests.map(p => ({
+        id: p.id,
+        user_id: p.userId,
+        user_name: p.userName,
+        user_email: p.userEmail,
+        plan: p.plan,
+        amount: p.amount,
+        bkash_transaction_id: p.bkashTransactionId,
+        screenshot_url: p.screenshotUrl,
+        status: p.status,
+        submitted_at: p.submittedAt,
+        reviewed_at: p.reviewedAt,
+        reviewed_by: p.reviewedBy,
+        rejection_reason: p.rejectionReason,
+      }));
+      const { error: payErr } = await supabase.from('payment_requests').upsert(payRows, { onConflict: 'id' });
+      if (payErr) console.warn('Supabase payment requests upsert notice:', payErr.message);
+    }
+
+    // 4. Sync Activity Logs (upsert latest 200 logs)
+    if (db.logs && db.logs.length > 0) {
+      const logRows = db.logs.slice(0, 200).map(l => ({
+        id: l.id,
+        user_id: l.userId,
+        user_name: l.userName,
+        user_email: l.userEmail,
+        action: l.action,
+        details: l.details,
+        ip: l.ip,
+        device: l.device,
+        timestamp: l.timestamp,
+      }));
+      const { error: logErr } = await supabase.from('activity_logs').upsert(logRows, { onConflict: 'id' });
+      if (logErr) console.warn('Supabase activity logs upsert notice:', logErr.message);
+    }
+  } catch (err) {
+    console.error('Error during Supabase background sync:', err);
+  }
+}
+
+// Hydrate database state from Supabase on startup
+async function loadFromSupabase(): Promise<DatabaseSchema | null> {
+  if (!supabase) return null;
+  try {
+    console.log('🔄 Fetching authoritative state from Supabase cloud database...');
+    const [usersRes, txsRes, logsRes, payRes] = await Promise.all([
+      supabase.from('users').select('*'),
+      supabase.from('transactions').select('*'),
+      supabase.from('activity_logs').select('*'),
+      supabase.from('payment_requests').select('*'),
+    ]);
+
+    if (usersRes.error) {
+      console.warn('Supabase users query warning:', usersRes.error.message);
+      return null;
+    }
+
+    const cloudUsers: Array<User & { passwordHash?: string }> = (usersRes.data || []).map((u: any) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      passwordHash: u.password_hash,
+      role: u.role,
+      status: u.status,
+      createdAt: u.created_at,
+      lastLoginAt: u.last_login_at,
+      lastActiveAt: u.last_active_at,
+      totalLogins: u.total_logins,
+      currency: u.currency,
+      monthlyBudgetLimit: u.monthly_budget_limit ? Number(u.monthly_budget_limit) : undefined,
+      openingBalance: u.opening_balance ? Number(u.opening_balance) : 0,
+      phone: u.phone,
+      profilePicture: u.profile_picture,
+      plan: u.plan,
+      planStatus: u.plan_status,
+      trialEndsAt: u.trial_ends_at,
+      planExpiresAt: u.plan_expires_at,
+    }));
+
+    const cloudTxs: Transaction[] = (txsRes.data || []).map((t: any) => ({
+      id: t.id,
+      userId: t.user_id,
+      type: t.type,
+      amount: Number(t.amount),
+      category: t.category,
+      date: t.date,
+      paymentMethod: t.payment_method,
+      note: t.note,
+      tags: Array.isArray(t.tags) ? t.tags : [],
+      createdAt: t.created_at,
+      updatedAt: t.updated_at,
+      syncStatus: 'synced',
+      isDeleted: t.is_deleted,
+    }));
+
+    const cloudLogs: ActivityLog[] = (logsRes.data || []).map((l: any) => ({
+      id: l.id,
+      userId: l.user_id,
+      userName: l.user_name,
+      userEmail: l.user_email,
+      action: l.action,
+      details: l.details,
+      ip: l.ip,
+      device: l.device,
+      timestamp: l.timestamp,
+    }));
+
+    const cloudPay: PaymentRequest[] = (payRes.data || []).map((p: any) => ({
+      id: p.id,
+      userId: p.user_id,
+      userName: p.user_name,
+      userEmail: p.user_email,
+      plan: p.plan,
+      amount: Number(p.amount),
+      bkashTransactionId: p.bkash_transaction_id,
+      screenshotUrl: p.screenshot_url,
+      status: p.status,
+      submittedAt: p.submitted_at,
+      reviewedAt: p.reviewed_at,
+      reviewedBy: p.reviewed_by,
+      rejectionReason: p.rejection_reason,
+    }));
+
+    if (cloudUsers.length > 0) {
+      const db: DatabaseSchema = {
+        users: cloudUsers,
+        transactions: cloudTxs,
+        logs: cloudLogs,
+        paymentRequests: cloudPay,
+      };
+      // Write locally so synchronous reads remain instantaneous
+      try {
+        fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf-8');
+      } catch {}
+      console.log(`✅ Successfully restored ${cloudUsers.length} users & ${cloudTxs.length} transactions from Supabase!`);
+      return db;
+    } else {
+      console.log('ℹ️ Supabase tables are currently empty. Seeding initial admin users into Supabase...');
+      const seed = buildInitialDb();
+      await syncAllToSupabase(seed);
+      return seed;
+    }
+  } catch (err) {
+    console.error('Failed to load from Supabase:', err);
+    return null;
+  }
 }
 
 // ==========================================
@@ -304,6 +548,9 @@ function addActivityLog(
 async function startServer() {
   const app = express();
   app.use(express.json({ limit: '10mb' }));
+
+  // Hydrate state from Supabase on startup (if connected)
+  await loadFromSupabase();
 
   // Health check
   app.get('/api/health', (_req, res) => {
