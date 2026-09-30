@@ -1,6 +1,6 @@
 {
-  "name": "Personal Income Expense Management System",
-  "short_name": "IncomeExpense",
+  "name": "EXP Tracker - Personal Income Expense Management System",
+  "short_name": "EXP Tracker",
   "description": "Track your personal income and expenses offline and seamlessly sync with the cloud.",
   "start_url": "/",
   "display": "standalone",

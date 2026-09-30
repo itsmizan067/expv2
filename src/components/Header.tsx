@@ -86,23 +86,18 @@ export const Header: React.FC<HeaderProps> = ({
           {/* ── Left: Logo & Brand Name ── */}
           <div className="flex items-center space-x-3 shrink-0">
             <div className="relative">
-              <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-emerald-950/50">
-                <svg viewBox="0 0 32 32" className="w-5 h-5 sm:w-6 sm:h-6" fill="none">
-                  <ellipse cx="16" cy="24" rx="10" ry="3.5" fill="rgba(255,255,255,0.15)"/>
-                  <ellipse cx="16" cy="19" rx="10" ry="3.5" fill="rgba(255,255,255,0.20)"/>
-                  <ellipse cx="16" cy="14" rx="10" ry="3.5" stroke="white" strokeWidth="1.2" fill="rgba(255,255,255,0.25)"/>
-                  <path d="M6 14v10c0 1.93 4.48 3.5 10 3.5S26 25.93 26 24V14" stroke="white" strokeWidth="1.2" strokeLinecap="round"/>
-                  <path d="M6 19c0 1.93 4.48 3.5 10 3.5S26 20.93 26 19" stroke="white" strokeWidth="1.2" strokeLinecap="round"/>
-                  <path d="M16 10V7M14 9l2-2 2 2" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
+              <img
+                src="/logo.png"
+                alt="EXP Tracker Logo"
+                className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl object-cover shadow-lg shadow-emerald-950/50 border border-emerald-400/30"
+              />
               <div className="absolute -top-1 -right-1 h-3.5 w-3.5 sm:h-4 sm:w-4 rounded-md bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow border border-slate-900">
                 <Star className="w-2 h-2 sm:w-2.5 sm:h-2.5 text-white fill-white" />
               </div>
             </div>
             <div>
               <h1 className="text-base font-extrabold tracking-tight text-white sm:text-lg leading-none">
-                Pocket Balance
+                EXP Tracker
               </h1>
             </div>
           </div>

@@ -414,8 +414,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSignIn, onSignUp }) 
       <footer className="border-t border-slate-800 py-8">
         <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
           <div className="flex items-center space-x-2">
-            <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-            <span className="font-bold text-slate-500">Pocket Balance</span>
+            <img src="/logo.png" alt="EXP Tracker Logo" className="w-5 h-5 rounded-md object-cover" />
+            <span className="font-bold text-slate-400">EXP Tracker</span>
           </div>
           <span>© {new Date().getFullYear()} · Offline-First · Cloud Sync · Secure · bKash Payments</span>
         </div>

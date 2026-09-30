@@ -69,7 +69,7 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
   const handleExportJSON = () => {
     const backup: BackupPayload = {
       version: 2,
-      appName: 'Pocket Balance',
+      appName: 'EXP Tracker',
       exportedAt: new Date().toISOString(),
       userPreferences: {
         currency: currentUser?.currency || 'USD',

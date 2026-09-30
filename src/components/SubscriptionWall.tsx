@@ -158,10 +158,8 @@ export const SubscriptionWall: React.FC<SubscriptionWallProps> = ({ user, pendin
       {/* Header */}
       <div className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-            <Star className="w-4 h-4 text-white" />
-          </div>
-          <span className="font-bold text-white">Pocket Balance</span>
+          <img src="/logo.png" alt="EXP Tracker" className="h-8 w-8 rounded-xl object-cover shadow border border-emerald-400/30" />
+          <span className="font-bold text-white">EXP Tracker</span>
         </div>
         {trialDaysLeft > 0 && (
           <span className="text-xs text-amber-400 bg-amber-950/40 border border-amber-800/50 px-3 py-1 rounded-full">
@@ -188,7 +186,7 @@ export const SubscriptionWall: React.FC<SubscriptionWallProps> = ({ user, pendin
             <div className="flex items-start space-x-3 bg-rose-950/40 border border-rose-800/50 text-rose-300 rounded-2xl p-4 mb-8 text-sm">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
               <div>
-                <strong>Your 7-day free trial has ended.</strong> Choose a plan below to continue using Pocket Balance.
+                <strong>Your 7-day free trial has ended.</strong> Choose a plan below to continue using EXP Tracker.
               </div>
             </div>
           )}
