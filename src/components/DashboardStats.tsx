@@ -15,6 +15,8 @@ import { CURRENCY_SYMBOLS } from '../lib/constants';
 interface DashboardStatsProps {
   totalIncome: number;
   totalExpense: number;
+  thisMonthIncome?: number;
+  thisMonthExpense?: number;
   netBalance: number;
   savingsRate: number;
   monthlyBudgetLimit: number;
@@ -27,6 +29,8 @@ interface DashboardStatsProps {
 export const DashboardStats: React.FC<DashboardStatsProps> = ({
   totalIncome,
   totalExpense,
+  thisMonthIncome,
+  thisMonthExpense,
   netBalance,
   savingsRate,
   monthlyBudgetLimit,
@@ -37,11 +41,12 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
 }) => {
   const sym = CURRENCY_SYMBOLS[currency] || '$';
 
-  // Budget calculations
-  const budgetUsagePercent = monthlyBudgetLimit > 0 ? (totalExpense / monthlyBudgetLimit) * 100 : 0;
+  // Budget calculations based on the current month's actual expenses
+  const spentThisMonth = thisMonthExpense !== undefined ? thisMonthExpense : totalExpense;
+  const budgetUsagePercent = monthlyBudgetLimit > 0 ? (spentThisMonth / monthlyBudgetLimit) * 100 : 0;
   const isBudgetWarning = budgetUsagePercent >= 80 && budgetUsagePercent < 100;
   const isBudgetExceeded = budgetUsagePercent >= 100;
-  const remainingBudget = Math.max(0, monthlyBudgetLimit - totalExpense);
+  const remainingBudget = Math.max(0, monthlyBudgetLimit - spentThisMonth);
 
   const formatAmount = (val: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -168,7 +173,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
             <div>
               <h3 className="text-sm font-bold text-slate-900">Monthly Budget Threshold</h3>
               <p className="text-xs text-slate-500">
-                Limit: <strong className="text-slate-800">{sym}{formatAmount(monthlyBudgetLimit)}</strong> • Spent: <strong className="text-slate-800">{sym}{formatAmount(totalExpense)}</strong>
+                Limit: <strong className="text-slate-800">{sym}{formatAmount(monthlyBudgetLimit)}</strong> • Spent this month: <strong className="text-slate-800">{sym}{formatAmount(spentThisMonth)}</strong>
               </p>
             </div>
           </div>

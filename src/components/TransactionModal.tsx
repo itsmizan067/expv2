@@ -31,11 +31,19 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   defaultType = 'expense',
   currency,
 }) => {
+  const getLocalDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [type, setType] = useState<TransactionType>(defaultType);
   const [amount, setAmount] = useState<string>('');
   const [category, setCategory] = useState<string>('');
   const [customCategory, setCustomCategory] = useState<string>('');
-  const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState<string>(getLocalDateString());
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [note, setNote] = useState<string>('');
   const [tagInput, setTagInput] = useState<string>('');
@@ -48,7 +56,15 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     if (editingTransaction) {
       setType(editingTransaction.type);
       setAmount(editingTransaction.amount.toString());
-      setCategory(editingTransaction.category);
+      const categoriesList = editingTransaction.type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+      const matchingCategory = categoriesList.find(c => c.name.toLowerCase() === editingTransaction.category.toLowerCase());
+      if (matchingCategory) {
+        setCategory(matchingCategory.name);
+        setCustomCategory('');
+      } else {
+        setCategory('Custom');
+        setCustomCategory(editingTransaction.category);
+      }
       setDate(editingTransaction.date);
       setPaymentMethod(editingTransaction.paymentMethod);
       setNote(editingTransaction.note || '');
@@ -58,7 +74,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setAmount('');
       const defaultCategories = defaultType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
       setCategory(defaultCategories[0].name);
-      setDate(new Date().toISOString().slice(0, 10));
+      setDate(getLocalDateString());
       setPaymentMethod('cash');
       setNote('');
       setTags([]);
@@ -118,7 +134,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const currentCategories = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
   return (
-    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
         
         {/* Header */}

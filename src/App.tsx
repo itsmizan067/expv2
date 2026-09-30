@@ -430,6 +430,8 @@ export default function App() {
                 <DashboardStats
                   totalIncome={stats.totalIncome}
                   totalExpense={stats.totalExpense}
+                  thisMonthIncome={stats.thisMonthIncome}
+                  thisMonthExpense={stats.thisMonthExpense}
                   netBalance={stats.netBalance}
                   savingsRate={stats.savingsRate}
                   monthlyBudgetLimit={currentUser.monthlyBudgetLimit || 3200}
