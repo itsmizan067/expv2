@@ -42,10 +42,13 @@ export const InstallPrompt: React.FC<InstallPromptProps> = ({
             </div>
             <button
               id="close-install-banner-btn"
+              type="button"
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-200 p-1"
+              aria-label="Dismiss banner"
+              title="Dismiss"
+              className="w-7 h-7 rounded-full bg-slate-800/80 hover:bg-rose-950/70 border border-slate-700/80 hover:border-rose-700/60 text-slate-400 hover:text-rose-400 flex items-center justify-center transition-all duration-200 hover:rotate-90 active:scale-90 shadow-2xs shrink-0 cursor-pointer"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5 transition-transform" strokeWidth={2.2} />
             </button>
           </div>
 
@@ -90,10 +93,13 @@ export const InstallPrompt: React.FC<InstallPromptProps> = ({
               </div>
               <button
                 id="close-guide-modal-btn"
+                type="button"
                 onClick={() => setShowGuideModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:bg-slate-100"
+                aria-label="Close dialog"
+                title="Close"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-rose-50 border border-slate-200/80 hover:border-rose-200 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all duration-200 hover:rotate-90 active:scale-90 shadow-2xs shrink-0 cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4 transition-transform" strokeWidth={2.2} />
               </button>
             </div>
 

@@ -261,10 +261,41 @@ export default function App() {
     if (isOnline) triggerSync();
   };
 
-  const handleImportTransactions = (imported: Transaction[]) => {
+  const handleImportTransactions = async (
+    imported: Transaction[],
+    prefs?: { currency?: string; openingBalance?: number; monthlyBudgetLimit?: number }
+  ) => {
+    // 1. Enqueue all imported transactions under current user
     for (const tx of imported) {
       offlineManager.enqueueAction('create', tx);
     }
+
+    // 2. If opening balance or budget preferences are included in backup, restore them too!
+    if (prefs && currentUser) {
+      const newOpening = prefs.openingBalance !== undefined ? prefs.openingBalance : (currentUser.openingBalance || 0);
+      const newCurrency = prefs.currency || currentUser.currency || 'USD';
+      const newBudget = prefs.monthlyBudgetLimit !== undefined ? prefs.monthlyBudgetLimit : (currentUser.monthlyBudgetLimit || 0);
+
+      try {
+        const updated = await updateProfile(currentUser.id, {
+          monthlyBudgetLimit: newBudget,
+          currency: newCurrency,
+          openingBalance: newOpening,
+        });
+        setCurrentUser(updated);
+        setStoredUser(updated);
+      } catch {
+        const updatedLocal = {
+          ...currentUser,
+          monthlyBudgetLimit: newBudget,
+          currency: newCurrency,
+          openingBalance: newOpening,
+        };
+        setCurrentUser(updatedLocal);
+        setStoredUser(updatedLocal);
+      }
+    }
+
     refreshLocalData();
     if (isOnline) triggerSync();
   };
@@ -626,6 +657,7 @@ export default function App() {
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         transactions={transactions}
+        currentUser={currentUser}
         onImport={handleImportTransactions}
       />
 

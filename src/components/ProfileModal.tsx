@@ -133,10 +133,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-extrabold text-slate-900">My Profile</h3>
             <button
+              id="close-profile-modal-btn"
+              type="button"
               onClick={onClose}
-              className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+              aria-label="Close dialog"
+              title="Close"
+              className="w-8 h-8 rounded-full bg-slate-100 hover:bg-rose-50 border border-slate-200/80 hover:border-rose-200 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all duration-200 hover:rotate-90 active:scale-90 shadow-2xs shrink-0 cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4 transition-transform" strokeWidth={2.2} />
             </button>
           </div>
 

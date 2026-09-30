@@ -62,10 +62,14 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
             </div>
           </div>
           <button
+            id="close-budget-modal-btn"
+            type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition"
+            aria-label="Close dialog"
+            title="Close"
+            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-rose-50 border border-slate-200/80 hover:border-rose-200 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all duration-200 hover:rotate-90 active:scale-90 shadow-2xs shrink-0 cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 transition-transform" strokeWidth={2.2} />
           </button>
         </div>
 

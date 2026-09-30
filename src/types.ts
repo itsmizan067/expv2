@@ -109,3 +109,15 @@ export interface FinancialStats {
   thisMonthIncome: number;
   thisMonthExpense: number;
 }
+
+export interface BackupPayload {
+  version: number;
+  appName: string;
+  exportedAt: string;
+  userPreferences?: {
+    currency?: string;
+    monthlyBudgetLimit?: number;
+    openingBalance?: number;
+  };
+  transactions: Transaction[];
+}

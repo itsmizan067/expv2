@@ -168,8 +168,15 @@ export const SubscriptionWall: React.FC<SubscriptionWallProps> = ({ user, pendin
             ⏳ {trialDaysLeft}d trial left
           </span>
         )}
-        <button onClick={() => onSubscriptionSuccess()} className="text-slate-500 hover:text-slate-300 transition p-1">
-          <X className="w-5 h-5" />
+        <button
+          id="close-subscription-wall-btn"
+          type="button"
+          onClick={() => onSubscriptionSuccess()}
+          aria-label="Close dialog"
+          title="Close"
+          className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-rose-950/70 border border-slate-700/80 hover:border-rose-700/60 text-slate-400 hover:text-rose-400 flex items-center justify-center transition-all duration-200 hover:rotate-90 active:scale-90 shadow-2xs shrink-0 cursor-pointer"
+        >
+          <X className="w-4 h-4 transition-transform" strokeWidth={2.2} />
         </button>
       </div>
 
@@ -325,8 +332,14 @@ export const SubscriptionWall: React.FC<SubscriptionWallProps> = ({ user, pendin
               {screenshot ? (
                 <div className="relative">
                   <img src={screenshot} alt="Screenshot" className="w-full rounded-xl border border-slate-700 max-h-48 object-cover" />
-                  <button onClick={() => setScreenshot(null)} className="absolute top-2 right-2 p-1 bg-slate-900/80 rounded-full text-slate-400 hover:text-white transition">
-                    <X className="w-4 h-4" />
+                  <button
+                    type="button"
+                    onClick={() => setScreenshot(null)}
+                    aria-label="Remove screenshot"
+                    title="Remove screenshot"
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-slate-900/90 backdrop-blur-xs border border-slate-700 text-slate-400 hover:text-rose-400 hover:bg-rose-950/70 hover:border-rose-700/60 flex items-center justify-center transition-all duration-150 hover:scale-105 active:scale-90 shadow-xs cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" strokeWidth={2.2} />
                   </button>
                 </div>
               ) : (

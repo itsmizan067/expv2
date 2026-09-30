@@ -189,10 +189,14 @@ export const PlanModal: React.FC<PlanModalProps> = ({ isOpen, onClose, user, onU
               </h3>
             </div>
             <button
+              id="close-plan-modal-btn"
+              type="button"
               onClick={onClose}
-              className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+              aria-label="Close dialog"
+              title="Close"
+              className="w-8 h-8 rounded-full bg-slate-100 hover:bg-rose-50 border border-slate-200/80 hover:border-rose-200 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all duration-200 hover:rotate-90 active:scale-90 shadow-2xs shrink-0 cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4 transition-transform" strokeWidth={2.2} />
             </button>
           </div>
 
@@ -409,10 +413,13 @@ export const PlanModal: React.FC<PlanModalProps> = ({ isOpen, onClose, user, onU
                     <div className="relative">
                       <img src={screenshot} alt="Screenshot" className="w-full rounded-xl border border-slate-200 max-h-40 object-cover" />
                       <button
+                        type="button"
                         onClick={() => setScreenshot(null)}
-                        className="absolute top-2 right-2 p-1 bg-white/80 rounded-full text-slate-400 hover:text-slate-700 transition"
+                        aria-label="Remove screenshot"
+                        title="Remove screenshot"
+                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 backdrop-blur-xs border border-slate-200/90 text-slate-500 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 flex items-center justify-center transition-all duration-150 hover:scale-105 active:scale-90 shadow-xs cursor-pointer"
                       >
-                        <X className="w-4 h-4" />
+                        <X className="w-3.5 h-3.5" strokeWidth={2.2} />
                       </button>
                     </div>
                   ) : (

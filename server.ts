@@ -13,9 +13,10 @@ const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 // automatically, but this branch is never reached there.
 const __dirname_compat = path.dirname(fileURLToPath(import.meta.url));
 
-const DATA_DIR = path.join(process.cwd(), '.data');
+const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(process.cwd(), '.data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
-
+const DB_BACKUP_FILE = path.join(DATA_DIR, 'db.json.bak');
+const DB_TEMP_FILE = path.join(DATA_DIR, 'db.json.tmp');
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
@@ -210,23 +211,57 @@ function readDb(): DatabaseSchema {
     });
 
     if (dirty) {
-      fs.writeFileSync(DB_FILE, JSON.stringify(parsed, null, 2), 'utf-8');
+      writeDb(parsed);
     }
 
     return parsed;
   } catch (err) {
-    console.error('Error reading DB, rebuilding from seed:', err);
+    console.error('Error reading primary DB file:', err);
+    // If db.json was corrupted, attempt automatic recovery from db.json.bak
+    if (fs.existsSync(DB_BACKUP_FILE)) {
+      try {
+        const backupData = fs.readFileSync(DB_BACKUP_FILE, 'utf-8');
+        const restored = migrateDb(JSON.parse(backupData));
+        fs.copyFileSync(DB_BACKUP_FILE, DB_FILE);
+        console.warn('⚠️ Primary database recovered safely from db.json.bak');
+        return restored;
+      } catch (backupErr) {
+        console.error('Failed to restore from backup database:', backupErr);
+      }
+    }
+
+    console.warn('⚠️ No valid backup found, rebuilding database from initial seed');
     const fresh = buildInitialDb();
-    fs.writeFileSync(DB_FILE, JSON.stringify(fresh, null, 2), 'utf-8');
+    writeDb(fresh);
     return fresh;
   }
 }
 
 function writeDb(data: DatabaseSchema) {
   try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    const payload = JSON.stringify(data, null, 2);
+    // 1. Write to temporary file first (atomic write pattern)
+    fs.writeFileSync(DB_TEMP_FILE, payload, 'utf-8');
+
+    // 2. Keep a rotating backup before overwriting the main file
+    if (fs.existsSync(DB_FILE)) {
+      try {
+        fs.copyFileSync(DB_FILE, DB_BACKUP_FILE);
+      } catch {
+        // Non-blocking if backup copy fails
+      }
+    }
+
+    // 3. Atomically replace the main database file
+    fs.renameSync(DB_TEMP_FILE, DB_FILE);
   } catch (err) {
-    console.error('Error writing DB:', err);
+    console.error('Error writing DB atomically:', err);
+    // Fallback direct write if atomic rename is blocked (e.g. cross-volume in rare OS setups)
+    try {
+      fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    } catch (directErr) {
+      console.error('Critical failure writing database directly:', directErr);
+    }
   }
 }
 
@@ -824,7 +859,9 @@ async function startServer() {
         if (!tx) continue;
 
         if (item.action === 'create') {
-          const exists = db.transactions.some(t => t.id === tx.id);
+          // Scope existence check to this user so restoring backups or migrating records
+          // never gets dropped due to ID conflicts with other users.
+          const exists = db.transactions.some(t => t.id === tx.id && t.userId === userId);
           if (!exists) {
             db.transactions.unshift({ ...tx, userId, syncStatus: 'synced', updatedAt: new Date().toISOString() });
             appliedChanges++;
