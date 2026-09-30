@@ -157,9 +157,9 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
 
       {/* Monthly Budget Tracker Bar Card */}
       <div id="monthly-budget-card" className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
-            <div className={`p-2 rounded-xl ${
+            <div className={`p-2 rounded-xl shrink-0 ${
               isBudgetExceeded ? 'bg-rose-100 text-rose-700' : isBudgetWarning ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'
             }`}>
               {isBudgetExceeded ? (
@@ -173,13 +173,13 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
             <div>
               <h3 className="text-sm font-bold text-slate-900">Monthly Budget Threshold</h3>
               <p className="text-xs text-slate-500">
-                Limit: <strong className="text-slate-800">{sym}{formatAmount(monthlyBudgetLimit)}</strong> • Spent this month: <strong className="text-slate-800">{sym}{formatAmount(spentThisMonth)}</strong>
+                Limit: <strong className="text-slate-800">{sym}{formatAmount(monthlyBudgetLimit)}</strong> • Spent: <strong className="text-slate-800">{sym}{formatAmount(spentThisMonth)}</strong>
               </p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-3">
-            <div className="text-right text-xs">
+          <div className="flex items-center justify-between sm:justify-end space-x-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+            <div className="text-left sm:text-right text-xs">
               <span className="text-slate-500">Remaining Allowance:</span>{' '}
               <strong className={`font-bold ${remainingBudget === 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
                 {sym}{formatAmount(remainingBudget)}
@@ -188,7 +188,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
             <button
               id="edit-budget-limit-btn"
               onClick={onOpenBudget}
-              className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition"
+              className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition shrink-0"
             >
               Adjust
             </button>

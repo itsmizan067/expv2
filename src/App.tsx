@@ -24,6 +24,7 @@ import {
   ListOrdered,
   LayoutDashboard,
   FileText,
+  Receipt,
 } from 'lucide-react';
 
 export default function App() {
@@ -470,6 +471,7 @@ export default function App() {
                     <ChartsView
                       transactions={transactions}
                       currency={currentUser.currency || 'USD'}
+                      compact={true}
                     />
                   </div>
                 </div>
@@ -515,13 +517,13 @@ export default function App() {
       {!isAdmin && (
         <nav
           aria-label="Mobile Navigation"
-          className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 text-white z-40 px-4 py-2 flex items-center justify-around"
+          className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 text-white z-40 px-3 py-1.5 flex items-center justify-around"
         >
           <button
             id="mobile-nav-dashboard"
             onClick={() => setActiveTab('dashboard')}
-            className={`flex flex-col items-center py-1 px-3 text-[11px] font-semibold transition ${
-              activeTab === 'dashboard' ? 'text-emerald-400' : 'text-slate-400'
+            className={`flex flex-col items-center py-1 px-2 text-[11px] font-semibold transition ${
+              activeTab === 'dashboard' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <LayoutDashboard className="w-5 h-5" />
@@ -529,33 +531,35 @@ export default function App() {
           </button>
 
           <button
+            id="mobile-nav-transactions"
+            onClick={() => setActiveTab('transactions')}
+            className={`flex flex-col items-center py-1 px-2 text-[11px] font-semibold transition ${
+              activeTab === 'transactions' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Receipt className="w-5 h-5" />
+            <span className="mt-0.5">History</span>
+          </button>
+
+          {/* Floating Action Button (Center) */}
+          <button
             id="mobile-nav-add"
             onClick={() => {
               setEditingTransaction(null);
               setDefaultTxType('expense');
               setIsTxModalOpen(true);
             }}
-            className="flex flex-col items-center -mt-5 bg-emerald-600 hover:bg-emerald-500 text-white p-3 rounded-full shadow-lg border-4 border-slate-900 transition active:scale-95"
+            title="Add Transaction"
+            className="flex flex-col items-center -mt-6 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white p-3.5 rounded-full shadow-lg shadow-emerald-950/50 border-4 border-slate-900 transition active:scale-95 shrink-0"
           >
             <Plus className="w-6 h-6" />
           </button>
 
           <button
-            id="mobile-nav-transactions"
-            onClick={() => setActiveTab('transactions')}
-            className={`flex flex-col items-center py-1 px-3 text-[11px] font-semibold transition ${
-              activeTab === 'transactions' ? 'text-emerald-400' : 'text-slate-400'
-            }`}
-          >
-            <ListOrdered className="w-5 h-5" />
-            <span className="mt-0.5">History</span>
-          </button>
-
-          <button
             id="mobile-nav-analytics"
             onClick={() => setActiveTab('analytics')}
-            className={`flex flex-col items-center py-1 px-3 text-[11px] font-semibold transition ${
-              activeTab === 'analytics' ? 'text-emerald-400' : 'text-slate-400'
+            className={`flex flex-col items-center py-1 px-2 text-[11px] font-semibold transition ${
+              activeTab === 'analytics' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <BarChart3 className="w-5 h-5" />
@@ -565,8 +569,8 @@ export default function App() {
           <button
             id="mobile-nav-report"
             onClick={() => setActiveTab('report')}
-            className={`flex flex-col items-center py-1 px-3 text-[11px] font-semibold transition ${
-              activeTab === 'report' ? 'text-amber-400' : 'text-slate-400'
+            className={`flex flex-col items-center py-1 px-2 text-[11px] font-semibold transition ${
+              activeTab === 'report' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <FileText className="w-5 h-5" />

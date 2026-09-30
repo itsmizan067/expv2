@@ -211,7 +211,7 @@ export const MonthlyReport: React.FC<MonthlyReportProps> = ({ transactions, user
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-px bg-slate-100">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-slate-100">
         <div className="bg-white p-4 text-center">
           <div className="text-[11px] text-slate-500 font-semibold mb-1 flex items-center justify-center space-x-1">
             <TrendingUp className="w-3 h-3 text-emerald-500" /><span>Total Cash In</span>

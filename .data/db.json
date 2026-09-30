@@ -38,9 +38,9 @@
       "role": "user",
       "status": "active",
       "createdAt": "2026-09-25T17:43:01.081Z",
-      "lastLoginAt": "2026-09-25T19:38:09.867Z",
-      "lastActiveAt": "2026-09-25T19:38:09.867Z",
-      "totalLogins": 4,
+      "lastLoginAt": "2026-09-30T20:05:31.593Z",
+      "lastActiveAt": "2026-09-30T20:05:31.593Z",
+      "totalLogins": 5,
       "currency": "BDT",
       "monthlyBudgetLimit": 3000,
       "plan": "premium",
@@ -124,6 +124,17 @@
     }
   ],
   "logs": [
+    {
+      "id": "log-1790798731599-t3i9e",
+      "userId": "user-1790358181048-arekc",
+      "userName": "Mizan",
+      "userEmail": "miz123@gmail.com",
+      "action": "LOGIN",
+      "details": "User signed in successfully (Role: user)",
+      "ip": "127.0.0.1",
+      "device": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+      "timestamp": "2026-09-30T20:05:31.599Z"
+    },
     {
       "id": "log-1790365139576-jf133",
       "userId": "user-1790358181048-arekc",
