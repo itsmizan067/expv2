@@ -67,7 +67,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setAmount('');
       const defaultCategories = defaultType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
       setCategory(defaultCategories[0].name);
-      setDate(getLocalDateString());
+      setDate(formatLocalDate());
       setPaymentMethod('cash');
       setNote('');
       setTags([]);
