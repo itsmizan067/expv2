@@ -1,9 +1,14 @@
-const CACHE_NAME = 'income-expense-pwa-v1';
+const CACHE_NAME = 'exp-tracker-pwa-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
+  '/logo.png',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png',
   '/icon.svg',
+  '/favicon.ico',
 ];
 
 self.addEventListener('install', (event) => {

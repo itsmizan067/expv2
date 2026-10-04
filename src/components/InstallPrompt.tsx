@@ -30,11 +30,13 @@ export const InstallPrompt: React.FC<InstallPromptProps> = ({
         >
           <div className="flex items-start justify-between">
             <div className="flex items-center space-x-3">
-              <div className="h-10 w-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shrink-0">
-                <Download className="w-5 h-5" />
-              </div>
+              <img
+                src="/logo.png"
+                alt="EXP Tracker Logo"
+                className="h-10 w-10 rounded-xl object-cover border border-emerald-400/30 shrink-0 shadow-sm"
+              />
               <div>
-                <h4 className="text-sm font-bold text-white">Install Income Expense App</h4>
+                <h4 className="text-sm font-bold text-white">Install EXP Tracker</h4>
                 <p className="text-xs text-slate-300">
                   Enjoy full offline functionality &amp; launch like a native app.
                 </p>
@@ -87,9 +89,13 @@ export const InstallPrompt: React.FC<InstallPromptProps> = ({
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 text-slate-900">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center space-x-2">
-                <Download className="w-5 h-5 text-emerald-600" />
-                <h3 className="text-base font-bold text-slate-900">Install as Portable Web App (PWA)</h3>
+              <div className="flex items-center space-x-2.5">
+                <img
+                  src="/logo.png"
+                  alt="EXP Tracker Logo"
+                  className="w-6 h-6 rounded-lg object-cover border border-emerald-400/30"
+                />
+                <h3 className="text-base font-bold text-slate-900">Install EXP Tracker (PWA)</h3>
               </div>
               <button
                 id="close-guide-modal-btn"
