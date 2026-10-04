@@ -17,6 +17,19 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="EXP Tracker" />
   <link rel="manifest" href="/manifest.webmanifest" />
+  <script>
+    // Apply theme before first paint (prevents a light flash). Key must match ThemeContext.
+    (function () {
+      try {
+        var t = localStorage.getItem('exp-tracker-theme');
+        if (t !== 'light' && t !== 'dark') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        if (t === 'dark') document.documentElement.classList.add('dark');
+        document.documentElement.style.colorScheme = t;
+      } catch (e) {}
+    })();
+  </script>
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
   <link rel="icon" type="image/png" href="/logo.png" />

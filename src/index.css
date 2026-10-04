@@ -1,4 +1,48 @@
 @import "tailwindcss";
+@import "./dark-theme.css";
+
+/* Class-based dark mode: `dark:` utilities apply when <html> has the `dark` class
+   (toggled by ThemeProvider / the boot script in index.html). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ── Dark theme design tokens ─────────────────────────────────── */
+:root {
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+  --d-inset: #0b1220;        /* page background, inputs, inset wells */
+  --d-surface: #111a2b;      /* cards, modals (was white) */
+  --d-surface-2: #182338;    /* subtle fills, hover lift (was slate-100) */
+  --d-surface-3: #213049;    /* stronger fills (was slate-200) */
+  --d-border-soft: #1b273b;
+  --d-border: #26354f;
+  --d-border-strong: #33456a;
+  --d-text-1: #f1f5f9;       /* headings (was slate-900) */
+  --d-text-2: #e2e8f0;
+  --d-text-3: #cbd5e1;
+  --d-text-4: #a9b6c9;
+  --d-text-5: #8a99b0;
+  --d-text-6: #64748b;       /* placeholders */
+}
+
+.dark body {
+  background-color: var(--d-inset);
+  color: var(--d-text-1);
+}
+
+/* Smooth colour transition when the theme is toggled */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.2s ease !important;
+}
+
+.dark ::-webkit-scrollbar { width: 10px; height: 10px; }
+.dark ::-webkit-scrollbar-track { background: var(--d-inset); }
+.dark ::-webkit-scrollbar-thumb { background: var(--d-border-strong); border-radius: 9999px; border: 2px solid var(--d-inset); }
 
 @keyframes signal-gentle-pulse {
   0%, 100% {

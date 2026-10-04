@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { User } from '../types';
 import { updateProfile } from '../lib/api';
+import { ThemeToggle } from './ThemeToggle';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -278,6 +279,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
             </div>
           )}
+
+          {/* Appearance / Theme */}
+          <div className="mt-5">
+            <ThemeToggle />
+          </div>
 
           {/* Account Details */}
           <div className="mt-5 pt-4 border-t border-slate-100">
