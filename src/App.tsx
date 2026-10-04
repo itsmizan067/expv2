@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { User, Transaction, SyncResult } from './types';
 import { OfflineStorageManager } from './lib/offlineManager';
+import { indexedDbService } from './lib/indexedDb';
 import { getStoredUser, setStoredUser, updateProfile } from './lib/api';
 import { formatLocalDate, getLocalMonthPrefix } from './lib/dateUtils';
 import { Header } from './components/Header';
@@ -74,17 +75,34 @@ export default function App() {
 
   // ─── Offline Storage Manager ──────────────────────────────────────────────
   const offlineManager = useMemo(() => {
-    return new OfflineStorageManager(currentUser?.id || 'guest');
+    const mgr = new OfflineStorageManager(currentUser?.id || 'guest');
+    mgr.setOnSubscriptionExpired(() => {
+      setShowSubWall(true);
+    });
+    return mgr;
   }, [currentUser?.id]);
 
   // ─── Load local data on mount / user change ────────────────────────────────
-  const refreshLocalData = useCallback(() => {
+  const refreshLocalData = useCallback(async () => {
+    // 1. Instant synchronous read from cache / localStorage
     const localTxs = offlineManager.getLocalTransactions();
     const queue = offlineManager.getPendingQueue();
     const lastSync = offlineManager.getLastSyncTime();
     setTransactions(localTxs);
     setPendingCount(queue.length);
     setLastSyncTime(lastSync);
+
+    // 2. Authoritative read from IndexedDB
+    try {
+      const idbTxs = await offlineManager.getIndexedDbTransactions();
+      if (idbTxs && idbTxs.length >= 0) {
+        setTransactions(idbTxs);
+      }
+      const pendingMutations = await indexedDbService.getPendingMutations();
+      setPendingCount(pendingMutations.length);
+    } catch (e) {
+      console.warn('IndexedDB read fallback:', e);
+    }
   }, [offlineManager]);
 
   useEffect(() => {
@@ -98,8 +116,11 @@ export default function App() {
     try {
       const result = await offlineManager.syncWithServer();
       setLastSyncResult(result);
-      if (result.status === 'success') {
-        refreshLocalData();
+      if (result.status === 'subscription_required') {
+        setShowSubWall(true);
+      }
+      if (result.status === 'success' || result.conflictsResolved) {
+        await refreshLocalData();
       }
     } catch (e: any) {
       console.warn('Sync failed:', e);
@@ -211,7 +232,7 @@ export default function App() {
   };
 
   // ─── Transaction CRUD (Offline-First) ─────────────────────────────────────
-  const handleSaveTransaction = (txData: Partial<Transaction>) => {
+  const handleSaveTransaction = async (txData: Partial<Transaction>) => {
     if (!currentUser) return;
 
     if (txData.id) {
@@ -228,9 +249,10 @@ export default function App() {
           note: txData.note !== undefined ? txData.note : existing.note,
           tags: txData.tags || existing.tags,
           updatedAt: new Date().toISOString(),
+          version: existing.version || 1,
           syncStatus: 'pending',
         };
-        offlineManager.enqueueAction('update', updatedTx);
+        await offlineManager.enqueueAction('update', updatedTx);
       }
     } else {
       const newTx: Transaction = {
@@ -245,20 +267,21 @@ export default function App() {
         tags: txData.tags || [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        version: 1,
         syncStatus: 'pending',
       };
-      offlineManager.enqueueAction('create', newTx);
+      await offlineManager.enqueueAction('create', newTx);
     }
 
-    refreshLocalData();
+    await refreshLocalData();
     if (isOnline) triggerSync();
   };
 
-  const handleDeleteTransaction = (id: string) => {
+  const handleDeleteTransaction = async (id: string) => {
     const tx = transactions.find(t => t.id === id);
     if (!tx) return;
-    offlineManager.enqueueAction('delete', tx);
-    refreshLocalData();
+    await offlineManager.enqueueAction('delete', tx);
+    await refreshLocalData();
     if (isOnline) triggerSync();
   };
 
@@ -268,7 +291,7 @@ export default function App() {
   ) => {
     // 1. Enqueue all imported transactions under current user
     for (const tx of imported) {
-      offlineManager.enqueueAction('create', tx);
+      await offlineManager.enqueueAction('create', tx);
     }
 
     // 2. If opening balance or budget preferences are included in backup, restore them too!

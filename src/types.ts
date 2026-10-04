@@ -76,7 +76,9 @@ export interface ActivityLog {
     | 'EMAIL_VERIFY'
     | 'PASSWORD_RESET_REQUEST'
     | 'PASSWORD_RESET_SUCCESS'
-    | 'OTP_SENT';
+    | 'OTP_SENT'
+    | 'BACKUP_EXPORT'
+    | 'BACKUP_RESTORE';
   details: string;
   ip?: string;
   device?: string;
@@ -107,6 +109,9 @@ export interface Transaction {
   updatedAt: string;
   syncStatus?: 'synced' | 'pending';
   isDeleted?: boolean;
+  deletedAt?: string; // Tombstone deletion timestamp
+  version: number; // Monotonically increasing version counter
+  clientMutationId?: string; // Idempotency key from last mutation
 }
 
 export interface CategoryBudget {
@@ -119,15 +124,40 @@ export interface SyncResult {
   syncedCount: number;
   serverTotal: number;
   timestamp: string;
-  status: 'success' | 'partial' | 'error';
+  status: 'success' | 'partial' | 'error' | 'subscription_required';
   message: string;
+  conflictsResolved?: number;
 }
 
 export interface SyncQueueItem {
   id: string;
+  clientMutationId: string; // Cryptographically random UUID for idempotency
   action: 'create' | 'update' | 'delete';
   transaction: Transaction;
+  baseVersion: number; // Version the client was modifying
+  timestamp: string; // Mutation ISO creation timestamp
   queuedAt: string;
+}
+
+export interface ProcessedMutationResult {
+  clientMutationId: string;
+  transactionId: string;
+  action: 'create' | 'update' | 'delete';
+  status: 'committed' | 'already_processed' | 'conflict_rejected' | 'conflict_resolved';
+  canonicalTransaction?: Transaction;
+}
+
+export interface IncrementalSyncRequest {
+  lastSyncCursor?: string;
+  mutations?: SyncQueueItem[];
+}
+
+export interface IncrementalSyncResponse {
+  serverCursor: string;
+  processedMutations: ProcessedMutationResult[];
+  changedTransactions: Transaction[];
+  serverTotalCount: number;
+  conflictsResolved: number;
 }
 
 export interface FinancialStats {

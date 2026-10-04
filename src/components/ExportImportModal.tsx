@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { X, Download, Upload, FileSpreadsheet, FileJson, CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, Wallet } from 'lucide-react';
+import { X, Download, Upload, FileSpreadsheet, FileJson, CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, Wallet, Cloud, CloudDownload, CloudUpload, Lock } from 'lucide-react';
 import { Transaction, User, BackupPayload } from '../types';
 import { formatLocalDate } from '../lib/dateUtils';
+import { fetchServerBackup, restoreServerBackup, ApiError } from '../lib/api';
 
 interface ExportImportModalProps {
   isOpen: boolean;
@@ -37,6 +38,63 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
   const [importError, setImportError] = useState<string>('');
   const [stagedBackup, setStagedBackup] = useState<StagedBackup | null>(null);
   const [includeOpeningBalance, setIncludeOpeningBalance] = useState<boolean>(true);
+  const [isCloudLoading, setIsCloudLoading] = useState<boolean>(false);
+
+  // Cloud Server Backup (Subscription-Protected API)
+  const handleCloudBackup = async () => {
+    if (!currentUser) return;
+    setIsCloudLoading(true);
+    setImportError('');
+    setImportStatus('');
+    try {
+      const data = await fetchServerBackup(currentUser.id);
+      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(data, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', dataStr);
+      downloadAnchor.setAttribute(
+        'download',
+        `cloud_backup_${currentUser.email?.split('@')[0] || 'account'}_${formatLocalDate()}.json`
+      );
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      setImportStatus(`Authoritative Cloud Backup downloaded successfully (${data.transactions.length} transactions).`);
+    } catch (err: any) {
+      if (err instanceof ApiError && (err.code === 'SUBSCRIPTION_EXPIRED' || err.status === 403)) {
+        setImportError('Cloud Backup requires an active subscription or trial. Your plan has expired.');
+      } else {
+        setImportError(err.message || 'Failed to download cloud backup');
+      }
+    } finally {
+      setIsCloudLoading(false);
+    }
+  };
+
+  // Cloud Server Restore (Subscription-Protected API)
+  const handleCloudRestore = async () => {
+    if (!currentUser || !stagedBackup) return;
+    setIsCloudLoading(true);
+    setImportError('');
+    setImportStatus('');
+    try {
+      const res = await restoreServerBackup(currentUser.id, {
+        transactions: stagedBackup.transactions,
+        userPreferences: stagedBackup.preferences,
+      });
+      const prefsToApply = includeOpeningBalance ? stagedBackup.preferences : undefined;
+      onImport(stagedBackup.transactions, prefsToApply);
+      setImportStatus(`Cloud & Local Restore complete: ${res.restoredCount} transactions restored to server cloud.`);
+      setStagedBackup(null);
+    } catch (err: any) {
+      if (err instanceof ApiError && (err.code === 'SUBSCRIPTION_EXPIRED' || err.status === 403)) {
+        setImportError('Cloud Restore requires an active subscription or trial. Your plan has expired.');
+      } else {
+        setImportError(err.message || 'Failed to restore backup to cloud');
+      }
+    } finally {
+      setIsCloudLoading(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -148,6 +206,7 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
           tags: Array.isArray(item.tags) ? item.tags : [],
           createdAt: item.createdAt || new Date().toISOString(),
           updatedAt: new Date().toISOString(),
+          version: item.version || 1,
           syncStatus: 'pending',
         }));
 
@@ -262,6 +321,28 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
                 <span className="text-[10px] text-indigo-600/80 font-normal">All Data + Opening Balance</span>
               </button>
             </div>
+
+            {/* Cloud Server Backup Option (Subscription-Protected) */}
+            {currentUser && (
+              <button
+                id="export-cloud-btn"
+                type="button"
+                disabled={isCloudLoading}
+                onClick={handleCloudBackup}
+                className="w-full mt-2 p-2.5 bg-gradient-to-r from-sky-50 to-indigo-50 hover:from-sky-100 hover:to-indigo-100 border border-sky-200 rounded-xl transition flex items-center justify-between font-bold text-sky-900 cursor-pointer disabled:opacity-50"
+              >
+                <div className="flex items-center space-x-2 text-left">
+                  <CloudDownload className="w-4 h-4 text-sky-600" />
+                  <div>
+                    <span className="text-xs">Download Cloud Server Backup</span>
+                    <span className="block text-[10px] text-sky-700/80 font-normal">Enforced with server-side active subscription check</span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-semibold px-2 py-0.5 bg-sky-200/70 text-sky-900 rounded-full">
+                  {isCloudLoading ? 'Loading...' : 'Cloud API'}
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Import / Restore Section */}
@@ -349,15 +430,30 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
                   </label>
                 )}
 
-                <button
-                  type="button"
-                  id="confirm-restore-btn"
-                  onClick={handleConfirmRestore}
-                  className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 shadow-xs cursor-pointer"
-                >
-                  <span>Confirm &amp; Restore into {currentUser?.name || 'Account'}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="button"
+                    id="confirm-restore-btn"
+                    onClick={handleConfirmRestore}
+                    className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 shadow-xs cursor-pointer"
+                  >
+                    <span>Restore to Local IndexedDB ({stagedBackup.transactions.length} items)</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  {currentUser && (
+                    <button
+                      type="button"
+                      id="cloud-restore-btn"
+                      disabled={isCloudLoading}
+                      onClick={handleCloudRestore}
+                      className="w-full py-2.5 px-4 bg-sky-600 hover:bg-sky-500 active:scale-98 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 shadow-xs cursor-pointer disabled:opacity-50"
+                    >
+                      <CloudUpload className="w-4 h-4" />
+                      <span>{isCloudLoading ? 'Restoring...' : 'Restore to Server Cloud & Sync'}</span>
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>

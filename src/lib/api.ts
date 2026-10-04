@@ -312,3 +312,75 @@ export async function rejectPayment(adminId: string, paymentId: string, reason?:
   const data = await safeJson<{ paymentRequest: PaymentRequest }>(res, 'Failed to reject payment');
   return data.paymentRequest;
 }
+
+// ─── Subscription-Protected Financial Services ────────────────────────────────
+
+export async function fetchMonthlyReport(userId: string, month?: string): Promise<{
+  month: string;
+  totalIncome: number;
+  totalExpense: number;
+  netSavings: number;
+  savingsRate: number;
+  transactionCount: number;
+  incomeByCategory: Record<string, number>;
+  expenseByCategory: Record<string, number>;
+  dayBreakdown: Record<string, { income: number; expense: number }>;
+}> {
+  const query = month ? `?month=${encodeURIComponent(month)}` : '';
+  const res = await fetch(`${API_BASE}/reports/monthly${query}`, {
+    headers: { 'x-user-id': userId },
+  });
+  return await safeJson(res, 'Failed to fetch monthly report');
+}
+
+export async function fetchAnalyticsSummary(userId: string): Promise<{
+  totalIncome: number;
+  totalExpense: number;
+  netBalance: number;
+  thisMonthIncome: number;
+  thisMonthExpense: number;
+  monthlyBudgetLimit: number;
+  budgetUsedPercentage: number;
+  savingsRate: number;
+  transactionCount: number;
+  categoryTotals: Record<string, { income: number; expense: number }>;
+}> {
+  const res = await fetch(`${API_BASE}/analytics/summary`, {
+    headers: { 'x-user-id': userId },
+  });
+  return await safeJson(res, 'Failed to fetch analytics summary');
+}
+
+export async function fetchServerBackup(userId: string): Promise<{
+  version: number;
+  appName: string;
+  exportedAt: string;
+  accountEmail?: string;
+  userPreferences: {
+    currency: string;
+    monthlyBudgetLimit: number;
+    openingBalance: number;
+  };
+  transactions: Transaction[];
+}> {
+  const res = await fetch(`${API_BASE}/backup`, {
+    headers: { 'x-user-id': userId },
+  });
+  return await safeJson(res, 'Failed to download server backup');
+}
+
+export async function restoreServerBackup(
+  userId: string,
+  backup: { transactions: Partial<Transaction>[]; userPreferences?: any }
+): Promise<{ message: string; restoredCount: number }> {
+  const res = await fetch(`${API_BASE}/restore`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-user-id': userId,
+    },
+    body: JSON.stringify(backup),
+  });
+  return await safeJson(res, 'Failed to restore backup to server');
+}
+

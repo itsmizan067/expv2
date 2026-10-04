@@ -93,6 +93,15 @@ interface DatabaseSchema {
   transactions: Transaction[];
   logs: ActivityLog[];
   paymentRequests: PaymentRequest[];
+  processedMutations?: Record<
+    string,
+    {
+      transactionId: string;
+      action: 'create' | 'update' | 'delete';
+      version: number;
+      processedAt: string;
+    }
+  >;
 }
 
 /** Sanitize user object to never leak sensitive hashes over API */
@@ -185,6 +194,7 @@ function buildInitialDb(): DatabaseSchema {
       },
     ],
     paymentRequests: [],
+    processedMutations: {},
   };
 }
 
@@ -192,9 +202,20 @@ function buildInitialDb(): DatabaseSchema {
 // DB READ / WRITE
 // ==========================================
 
-// Migrate DB to ensure paymentRequests array always exists
+// Migrate DB to ensure paymentRequests, logs, and processedMutations always exist
 function migrateDb(db: any): DatabaseSchema {
+  if (!db.users) db.users = [];
+  if (!db.transactions) db.transactions = [];
+  if (!db.logs) db.logs = [];
   if (!db.paymentRequests) db.paymentRequests = [];
+  if (!db.processedMutations) db.processedMutations = {};
+  if (Array.isArray(db.transactions)) {
+    db.transactions = db.transactions.map((t: any) => ({
+      ...t,
+      version: t.version || 1,
+      isDeleted: Boolean(t.isDeleted),
+    }));
+  }
   return db as DatabaseSchema;
 }
 
@@ -416,7 +437,10 @@ async function syncAllToSupabase(db: DatabaseSchema) {
         tags: t.tags || [],
         created_at: t.createdAt,
         updated_at: t.updatedAt,
-        is_deleted: t.isDeleted || false,
+        is_deleted: Boolean(t.isDeleted),
+        deleted_at: t.deletedAt || null,
+        version: t.version || 1,
+        client_mutation_id: t.clientMutationId || null,
       }));
       const { error: txErr } = await supabase.from('transactions').upsert(txRows, { onConflict: 'id' });
       if (txErr) console.warn('Supabase transactions upsert notice:', txErr.message);
@@ -525,7 +549,10 @@ async function loadFromSupabase(): Promise<DatabaseSchema | null> {
       createdAt: t.created_at,
       updatedAt: t.updated_at,
       syncStatus: 'synced',
-      isDeleted: t.is_deleted,
+      isDeleted: Boolean(t.is_deleted),
+      deletedAt: t.deleted_at,
+      version: Number(t.version) || 1,
+      clientMutationId: t.client_mutation_id,
     }));
 
     const cloudLogs: ActivityLog[] = (logsRes.data || []).map((l: any) => ({
@@ -634,7 +661,7 @@ async function startServer() {
   });
 
   // ==========================================
-  // RBAC MIDDLEWARE
+  // RBAC & BACKEND SUBSCRIPTION ENFORCEMENT MIDDLEWARE
   // ==========================================
 
   /** Requires the caller to be admin OR super_admin */
@@ -656,6 +683,47 @@ async function startServer() {
     if (!user || user.role !== 'super_admin') {
       return res.status(403).json({ error: 'Forbidden: Super Admin access required.' });
     }
+    next();
+  };
+
+  /**
+   * Backend Subscription Enforcement Middleware
+   * Authoritatively determines the user's trial/subscription status from trusted database data.
+   * Expired trial or subscription users cannot bypass through direct API requests.
+   * Admins and Super Admins always have access.
+   */
+  const requireActiveSubscription = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const userId = (req.headers['x-user-id'] as string) || (req.query.userId as string);
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Unauthorized: Missing user authentication credentials.',
+        code: 'UNAUTHORIZED',
+      });
+    }
+
+    const db = readDb();
+    const user = db.users.find(u => u.id === userId);
+    if (!user) {
+      return res.status(404).json({
+        error: 'User account not found.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    const active = isSubscriptionActive(user);
+    if (!active) {
+      return res.status(403).json({
+        error: 'Active subscription required. Your 7-day free trial or subscription plan has expired. Please upgrade or submit payment to access this service.',
+        code: 'SUBSCRIPTION_EXPIRED',
+        plan: user.plan || 'trial',
+        planStatus: user.planStatus || 'expired',
+        trialEndsAt: user.trialEndsAt,
+        planExpiresAt: user.planExpiresAt,
+        subscriptionActive: false,
+      });
+    }
+
+    (req as any).user = user;
     next();
   };
 
@@ -1521,33 +1589,36 @@ async function startServer() {
   });
 
   // ==========================================
-  // TRANSACTION & OFFLINE CLOUD SYNC ROUTES
+  // TRANSACTION & SUBSCRIPTION-PROTECTED ROUTES
   // ==========================================
 
-  // Get all transactions for current user
-  app.get('/api/transactions', (req, res) => {
+  // 1. Get all active transactions for current user (Subscription Protected)
+  app.get('/api/transactions', requireActiveSubscription, (req, res) => {
     const userId = req.headers['x-user-id'] as string;
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
     const db = readDb();
     const userTx = db.transactions.filter(t => t.userId === userId && !t.isDeleted);
     res.json({ transactions: userTx });
   });
 
-  // Create transaction
-  app.post('/api/transactions', (req, res) => {
+  // 2. Create transaction (Subscription Protected)
+  app.post('/api/transactions', requireActiveSubscription, (req, res) => {
     const userId = req.headers['x-user-id'] as string;
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const { type, amount, category, date, paymentMethod, note, tags, id } = req.body;
+    const { type, amount, category, date, paymentMethod, note, tags, id, clientMutationId } = req.body;
     if (!type || amount === undefined || !category || !date) {
       return res.status(400).json({ error: 'Type, amount, category, and date are required' });
     }
 
     const db = readDb();
+    const mutId = clientMutationId || `mut-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+    // Idempotency: Deduplicate if clientMutationId was already processed
+    if (clientMutationId && db.processedMutations && db.processedMutations[clientMutationId]) {
+      const existing = db.transactions.find(t => t.id === db.processedMutations![clientMutationId].transactionId);
+      if (existing) {
+        return res.status(200).json({ transaction: existing, alreadyProcessed: true });
+      }
+    }
+
     const newTx: Transaction = {
       id: id || `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       userId,
@@ -1561,9 +1632,19 @@ async function startServer() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       syncStatus: 'synced',
+      isDeleted: false,
+      version: 1,
+      clientMutationId: mutId,
     };
 
     db.transactions.unshift(newTx);
+    if (!db.processedMutations) db.processedMutations = {};
+    db.processedMutations[mutId] = {
+      transactionId: newTx.id,
+      action: 'create',
+      version: 1,
+      processedAt: new Date().toISOString(),
+    };
     writeDb(db);
 
     const user = db.users.find(u => u.id === userId);
@@ -1579,14 +1660,10 @@ async function startServer() {
     res.status(201).json({ transaction: newTx });
   });
 
-  // Update transaction
-  app.put('/api/transactions/:id', (req, res) => {
+  // 3. Update transaction (Subscription Protected & Concurrency Checked)
+  app.put('/api/transactions/:id', requireActiveSubscription, (req, res) => {
     const userId = req.headers['x-user-id'] as string;
     const { id } = req.params;
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
     const db = readDb();
     const txIndex = db.transactions.findIndex(t => t.id === id && t.userId === userId);
 
@@ -1594,8 +1671,21 @@ async function startServer() {
       return res.status(404).json({ error: 'Transaction not found' });
     }
 
-    const { type, amount, category, date, paymentMethod, note, tags } = req.body;
     const existing = db.transactions[txIndex];
+    const { type, amount, category, date, paymentMethod, note, tags, clientMutationId, baseVersion } = req.body;
+
+    // Concurrency conflict check
+    if (baseVersion !== undefined && (existing.version || 1) > baseVersion) {
+      return res.status(409).json({
+        error: 'Conflict: Record was modified on another device.',
+        canonicalTransaction: existing,
+        code: 'VERSION_CONFLICT',
+      });
+    }
+
+    const newVersion = (existing.version || 1) + 1;
+    const mutId = clientMutationId || `mut-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const now = new Date().toISOString();
 
     db.transactions[txIndex] = {
       ...existing,
@@ -1606,8 +1696,18 @@ async function startServer() {
       paymentMethod: paymentMethod || existing.paymentMethod,
       note: note !== undefined ? note.trim() : existing.note,
       tags: Array.isArray(tags) ? tags : existing.tags,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
+      version: newVersion,
+      clientMutationId: mutId,
       syncStatus: 'synced',
+    };
+
+    if (!db.processedMutations) db.processedMutations = {};
+    db.processedMutations[mutId] = {
+      transactionId: existing.id,
+      action: 'update',
+      version: newVersion,
+      processedAt: now,
     };
 
     writeDb(db);
@@ -1625,21 +1725,38 @@ async function startServer() {
     res.json({ transaction: db.transactions[txIndex] });
   });
 
-  // Delete transaction
-  app.delete('/api/transactions/:id', (req, res) => {
+  // 4. Delete transaction with Tombstone marker (Subscription Protected)
+  app.delete('/api/transactions/:id', requireActiveSubscription, (req, res) => {
     const userId = req.headers['x-user-id'] as string;
     const { id } = req.params;
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
+    const { clientMutationId } = req.body || {};
     const db = readDb();
-    const tx = db.transactions.find(t => t.id === id && t.userId === userId);
-    if (!tx) {
+    const txIndex = db.transactions.findIndex(t => t.id === id && t.userId === userId);
+
+    if (txIndex === -1) {
       return res.status(404).json({ error: 'Transaction not found' });
     }
 
-    db.transactions = db.transactions.filter(t => !(t.id === id && t.userId === userId));
+    const existing = db.transactions[txIndex];
+    const now = new Date().toISOString();
+    const newVersion = (existing.version || 1) + 1;
+    const mutId = clientMutationId || `mut-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+    // Set Tombstone marker so deleted record cannot reappear during later sync on other devices
+    existing.isDeleted = true;
+    existing.deletedAt = now;
+    existing.updatedAt = now;
+    existing.version = newVersion;
+    existing.clientMutationId = mutId;
+
+    db.transactions[txIndex] = existing;
+    if (!db.processedMutations) db.processedMutations = {};
+    db.processedMutations[mutId] = {
+      transactionId: existing.id,
+      action: 'delete',
+      version: newVersion,
+      processedAt: now,
+    };
     writeDb(db);
 
     const user = db.users.find(u => u.id === userId);
@@ -1648,51 +1765,370 @@ async function startServer() {
       user?.name || 'User',
       user?.email || 'user',
       'TRANSACTION_DELETE',
-      `Deleted transaction ID ${id} (${tx.type} of $${tx.amount})`,
+      `Deleted transaction ID ${id} (${existing.type} of $${existing.amount}) with tombstone`,
       req
     );
 
-    res.json({ message: 'Transaction deleted successfully' });
+    res.json({ message: 'Transaction deleted successfully (tombstone recorded)', transaction: existing });
   });
 
-  // BATCH SYNC ENDPOINT (Offline → Cloud sync)
-  app.post('/api/sync/batch', (req, res) => {
+  // 5. INCREMENTAL CHANGE-BASED SYNCHRONIZATION (Subscription Protected)
+  app.post('/api/sync/incremental', requireActiveSubscription, (req, res) => {
     const userId = req.headers['x-user-id'] as string;
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+    const { lastSyncCursor, mutations = [] } = req.body as {
+      lastSyncCursor?: string;
+      mutations?: SyncQueueItem[];
+    };
+
+    const db = readDb();
+    if (!db.processedMutations) db.processedMutations = {};
+
+    const now = new Date().toISOString();
+    const processedResults: Array<{
+      clientMutationId: string;
+      transactionId: string;
+      action: 'create' | 'update' | 'delete';
+      status: 'committed' | 'already_processed' | 'conflict_rejected' | 'conflict_resolved';
+      canonicalTransaction?: Transaction;
+    }> = [];
+
+    const committedMutationIds = new Set<string>();
+    let conflictsResolvedCount = 0;
+
+    // Process incoming mutations
+    for (const item of mutations) {
+      const mutId = item.clientMutationId;
+      const targetTx = item.transaction;
+      if (!mutId || !targetTx || !targetTx.id) continue;
+
+      // Deduplication: Has mutation already been committed?
+      if (db.processedMutations[mutId]) {
+        const canonical = db.transactions.find(t => t.id === targetTx.id && t.userId === userId);
+        processedResults.push({
+          clientMutationId: mutId,
+          transactionId: targetTx.id,
+          action: item.action,
+          status: 'already_processed',
+          canonicalTransaction: canonical,
+        });
+        continue;
+      }
+
+      if (item.action === 'create') {
+        const existing = db.transactions.find(t => t.id === targetTx.id && t.userId === userId);
+        if (existing) {
+          // Record with same ID already exists on server
+          conflictsResolvedCount++;
+          db.processedMutations[mutId] = {
+            transactionId: existing.id,
+            action: 'create',
+            version: existing.version || 1,
+            processedAt: now,
+          };
+          processedResults.push({
+            clientMutationId: mutId,
+            transactionId: existing.id,
+            action: 'create',
+            status: 'conflict_resolved',
+            canonicalTransaction: existing,
+          });
+        } else {
+          const freshTx: Transaction = {
+            ...targetTx,
+            userId,
+            version: 1,
+            createdAt: targetTx.createdAt || now,
+            updatedAt: now,
+            isDeleted: false,
+            clientMutationId: mutId,
+            syncStatus: 'synced',
+          };
+          db.transactions.unshift(freshTx);
+          db.processedMutations[mutId] = {
+            transactionId: freshTx.id,
+            action: 'create',
+            version: 1,
+            processedAt: now,
+          };
+          committedMutationIds.add(mutId);
+          processedResults.push({
+            clientMutationId: mutId,
+            transactionId: freshTx.id,
+            action: 'create',
+            status: 'committed',
+            canonicalTransaction: freshTx,
+          });
+        }
+      } else if (item.action === 'update') {
+        const idx = db.transactions.findIndex(t => t.id === targetTx.id && t.userId === userId);
+        if (idx === -1) {
+          // If transaction does not exist on server, create it
+          const freshTx: Transaction = {
+            ...targetTx,
+            userId,
+            version: 1,
+            createdAt: targetTx.createdAt || now,
+            updatedAt: now,
+            isDeleted: false,
+            clientMutationId: mutId,
+            syncStatus: 'synced',
+          };
+          db.transactions.unshift(freshTx);
+          db.processedMutations[mutId] = {
+            transactionId: freshTx.id,
+            action: 'update',
+            version: 1,
+            processedAt: now,
+          };
+          committedMutationIds.add(mutId);
+          processedResults.push({
+            clientMutationId: mutId,
+            transactionId: freshTx.id,
+            action: 'update',
+            status: 'committed',
+            canonicalTransaction: freshTx,
+          });
+        } else {
+          const existing = db.transactions[idx];
+
+          if (existing.isDeleted) {
+            // Tombstone wins: rejected update to deleted item
+            conflictsResolvedCount++;
+            db.processedMutations[mutId] = {
+              transactionId: existing.id,
+              action: 'update',
+              version: existing.version,
+              processedAt: now,
+            };
+            processedResults.push({
+              clientMutationId: mutId,
+              transactionId: existing.id,
+              action: 'update',
+              status: 'conflict_rejected',
+              canonicalTransaction: existing,
+            });
+          } else if ((existing.version || 1) > (item.baseVersion || 0)) {
+            // Concurrent modification conflict: compare timestamps
+            const serverTime = new Date(existing.updatedAt).getTime();
+            const clientTime = new Date(item.timestamp || targetTx.updatedAt).getTime();
+
+            if (serverTime > clientTime) {
+              // Server has newer change: retain server record
+              conflictsResolvedCount++;
+              db.processedMutations[mutId] = {
+                transactionId: existing.id,
+                action: 'update',
+                version: existing.version,
+                processedAt: now,
+              };
+              processedResults.push({
+                clientMutationId: mutId,
+                transactionId: existing.id,
+                action: 'update',
+                status: 'conflict_resolved',
+                canonicalTransaction: existing,
+              });
+            } else {
+              // Client modification is newer: apply update and increment version
+              const nextVer = (existing.version || 1) + 1;
+              db.transactions[idx] = {
+                ...existing,
+                ...targetTx,
+                userId,
+                version: nextVer,
+                updatedAt: now,
+                clientMutationId: mutId,
+                syncStatus: 'synced',
+              };
+              db.processedMutations[mutId] = {
+                transactionId: existing.id,
+                action: 'update',
+                version: nextVer,
+                processedAt: now,
+              };
+              committedMutationIds.add(mutId);
+              processedResults.push({
+                clientMutationId: mutId,
+                transactionId: existing.id,
+                action: 'update',
+                status: 'committed',
+                canonicalTransaction: db.transactions[idx],
+              });
+            }
+          } else {
+            // Clean update
+            const nextVer = (existing.version || 1) + 1;
+            db.transactions[idx] = {
+              ...existing,
+              ...targetTx,
+              userId,
+              version: nextVer,
+              updatedAt: now,
+              clientMutationId: mutId,
+              syncStatus: 'synced',
+            };
+            db.processedMutations[mutId] = {
+              transactionId: existing.id,
+              action: 'update',
+              version: nextVer,
+              processedAt: now,
+            };
+            committedMutationIds.add(mutId);
+            processedResults.push({
+              clientMutationId: mutId,
+              transactionId: existing.id,
+              action: 'update',
+              status: 'committed',
+              canonicalTransaction: db.transactions[idx],
+            });
+          }
+        }
+      } else if (item.action === 'delete') {
+        const idx = db.transactions.findIndex(t => t.id === targetTx.id && t.userId === userId);
+        if (idx !== -1) {
+          const existing = db.transactions[idx];
+          const nextVer = (existing.version || 1) + 1;
+          existing.isDeleted = true;
+          existing.deletedAt = now;
+          existing.updatedAt = now;
+          existing.version = nextVer;
+          existing.clientMutationId = mutId;
+          db.transactions[idx] = existing;
+
+          db.processedMutations[mutId] = {
+            transactionId: existing.id,
+            action: 'delete',
+            version: nextVer,
+            processedAt: now,
+          };
+          committedMutationIds.add(mutId);
+          processedResults.push({
+            clientMutationId: mutId,
+            transactionId: existing.id,
+            action: 'delete',
+            status: 'committed',
+            canonicalTransaction: existing,
+          });
+        } else {
+          db.processedMutations[mutId] = {
+            transactionId: targetTx.id,
+            action: 'delete',
+            version: 1,
+            processedAt: now,
+          };
+          processedResults.push({
+            clientMutationId: mutId,
+            transactionId: targetTx.id,
+            action: 'delete',
+            status: 'committed',
+          });
+        }
+      }
     }
 
+    // Persist mutation modifications
+    if (mutations.length > 0) {
+      writeDb(db);
+    }
+
+    // Fetch incremental changes since lastSyncCursor
+    let changedTransactions: Transaction[] = [];
+    if (lastSyncCursor) {
+      const cursorTime = new Date(lastSyncCursor).getTime();
+      changedTransactions = db.transactions.filter(t => {
+        if (t.userId !== userId) return false;
+        // Exclude mutations that were just committed by this client
+        if (t.clientMutationId && committedMutationIds.has(t.clientMutationId)) return false;
+        return new Date(t.updatedAt).getTime() > cursorTime;
+      });
+    } else {
+      // First sync: return all active transactions + any active tombstones
+      changedTransactions = db.transactions.filter(t => {
+        if (t.userId !== userId) return false;
+        if (t.clientMutationId && committedMutationIds.has(t.clientMutationId)) return false;
+        return !t.isDeleted;
+      });
+    }
+
+    const totalActiveCount = db.transactions.filter(t => t.userId === userId && !t.isDeleted).length;
+
+    res.json({
+      serverCursor: now,
+      processedMutations: processedResults,
+      changedTransactions,
+      serverTotalCount: totalActiveCount,
+      conflictsResolved: conflictsResolvedCount,
+    });
+  });
+
+  // 6. Legacy / Batch Sync route (Subscription Protected)
+  app.post('/api/sync/batch', requireActiveSubscription, (req, res) => {
+    const userId = req.headers['x-user-id'] as string;
     const { queue, clientTransactions } = req.body as {
       queue?: SyncQueueItem[];
       clientTransactions?: Transaction[];
     };
 
     const db = readDb();
+    if (!db.processedMutations) db.processedMutations = {};
     let appliedChanges = 0;
+    const now = new Date().toISOString();
 
     if (Array.isArray(queue) && queue.length > 0) {
       for (const item of queue) {
         const tx = item.transaction;
         if (!tx) continue;
+        const mutId = item.clientMutationId || item.id;
+
+        // Skip if already processed
+        if (mutId && db.processedMutations[mutId]) continue;
 
         if (item.action === 'create') {
-          // Scope existence check to this user so restoring backups or migrating records
-          // never gets dropped due to ID conflicts with other users.
           const exists = db.transactions.some(t => t.id === tx.id && t.userId === userId);
           if (!exists) {
-            db.transactions.unshift({ ...tx, userId, syncStatus: 'synced', updatedAt: new Date().toISOString() });
+            db.transactions.unshift({
+              ...tx,
+              userId,
+              version: 1,
+              isDeleted: false,
+              syncStatus: 'synced',
+              updatedAt: now,
+            });
+            if (mutId) {
+              db.processedMutations[mutId] = { transactionId: tx.id, action: 'create', version: 1, processedAt: now };
+            }
             appliedChanges++;
           }
         } else if (item.action === 'update') {
           const idx = db.transactions.findIndex(t => t.id === tx.id && t.userId === userId);
+          const nextVer = idx !== -1 ? (db.transactions[idx].version || 1) + 1 : 1;
           if (idx !== -1) {
-            db.transactions[idx] = { ...tx, userId, syncStatus: 'synced', updatedAt: new Date().toISOString() };
+            db.transactions[idx] = {
+              ...db.transactions[idx],
+              ...tx,
+              userId,
+              version: nextVer,
+              syncStatus: 'synced',
+              updatedAt: now,
+            };
           } else {
-            db.transactions.unshift({ ...tx, userId, syncStatus: 'synced', updatedAt: new Date().toISOString() });
+            db.transactions.unshift({ ...tx, userId, version: 1, syncStatus: 'synced', updatedAt: now });
+          }
+          if (mutId) {
+            db.processedMutations[mutId] = { transactionId: tx.id, action: 'update', version: nextVer, processedAt: now };
           }
           appliedChanges++;
         } else if (item.action === 'delete') {
-          db.transactions = db.transactions.filter(t => !(t.id === tx.id && t.userId === userId));
+          const idx = db.transactions.findIndex(t => t.id === tx.id && t.userId === userId);
+          if (idx !== -1) {
+            db.transactions[idx].isDeleted = true;
+            db.transactions[idx].deletedAt = now;
+            db.transactions[idx].updatedAt = now;
+            db.transactions[idx].version = (db.transactions[idx].version || 1) + 1;
+          }
+          if (mutId) {
+            db.processedMutations[mutId] = { transactionId: tx.id, action: 'delete', version: 1, processedAt: now };
+          }
           appliedChanges++;
         }
       }
@@ -1706,8 +2142,10 @@ async function startServer() {
           db.transactions.unshift({
             ...clientTx,
             userId,
+            version: 1,
+            isDeleted: false,
             syncStatus: 'synced',
-            updatedAt: clientTx.updatedAt || new Date().toISOString(),
+            updatedAt: clientTx.updatedAt || now,
           });
           appliedChanges++;
         }
@@ -1718,25 +2156,212 @@ async function startServer() {
       writeDb(db);
     }
 
-    const user = db.users.find(u => u.id === userId);
-    if (appliedChanges > 0) {
-      addActivityLog(
-        userId,
-        user?.name || 'User',
-        user?.email || 'user',
-        'OFFLINE_SYNC',
-        `Synchronized ${appliedChanges} pending transaction change(s) from offline storage`,
-        req
-      );
-    }
-
     const serverTransactions = db.transactions.filter(t => t.userId === userId && !t.isDeleted);
     res.json({
       status: 'success',
       appliedChanges,
       serverTransactions,
-      syncedAt: new Date().toISOString(),
+      syncedAt: now,
       message: `Sync completed: ${appliedChanges} modifications applied.`,
+    });
+  });
+
+  // 7. Monthly Financial Report (Subscription Protected)
+  app.get('/api/reports/monthly', requireActiveSubscription, (req, res) => {
+    const userId = req.headers['x-user-id'] as string;
+    const requestedMonth = (req.query.month as string) || new Date().toISOString().slice(0, 7); // YYYY-MM
+    const db = readDb();
+
+    const monthTxs = db.transactions.filter(
+      t => t.userId === userId && !t.isDeleted && typeof t.date === 'string' && t.date.startsWith(requestedMonth)
+    );
+
+    let totalIncome = 0;
+    let totalExpense = 0;
+    const incomeByCategory: Record<string, number> = {};
+    const expenseByCategory: Record<string, number> = {};
+    const dayBreakdown: Record<string, { income: number; expense: number }> = {};
+
+    for (const tx of monthTxs) {
+      const day = tx.date;
+      if (!dayBreakdown[day]) dayBreakdown[day] = { income: 0, expense: 0 };
+
+      if (tx.type === 'income') {
+        totalIncome += tx.amount;
+        incomeByCategory[tx.category] = (incomeByCategory[tx.category] || 0) + tx.amount;
+        dayBreakdown[day].income += tx.amount;
+      } else {
+        totalExpense += tx.amount;
+        expenseByCategory[tx.category] = (expenseByCategory[tx.category] || 0) + tx.amount;
+        dayBreakdown[day].expense += tx.amount;
+      }
+    }
+
+    const netSavings = totalIncome - totalExpense;
+    const savingsRate = totalIncome > 0 ? Number(((netSavings / totalIncome) * 100).toFixed(1)) : 0;
+
+    res.json({
+      month: requestedMonth,
+      totalIncome,
+      totalExpense,
+      netSavings,
+      savingsRate,
+      transactionCount: monthTxs.length,
+      incomeByCategory,
+      expenseByCategory,
+      dayBreakdown,
+    });
+  });
+
+  // 8. Financial Analytics Summary (Subscription Protected)
+  app.get('/api/analytics/summary', requireActiveSubscription, (req, res) => {
+    const userId = req.headers['x-user-id'] as string;
+    const db = readDb();
+    const user = db.users.find(u => u.id === userId);
+
+    const userTxs = db.transactions.filter(t => t.userId === userId && !t.isDeleted);
+    const currentMonth = new Date().toISOString().slice(0, 7);
+
+    let totalIncome = 0;
+    let totalExpense = 0;
+    let thisMonthIncome = 0;
+    let thisMonthExpense = 0;
+    const categoryTotals: Record<string, { income: number; expense: number }> = {};
+
+    for (const tx of userTxs) {
+      const isCurrent = typeof tx.date === 'string' && tx.date.startsWith(currentMonth);
+
+      if (!categoryTotals[tx.category]) {
+        categoryTotals[tx.category] = { income: 0, expense: 0 };
+      }
+
+      if (tx.type === 'income') {
+        totalIncome += tx.amount;
+        categoryTotals[tx.category].income += tx.amount;
+        if (isCurrent) thisMonthIncome += tx.amount;
+      } else {
+        totalExpense += tx.amount;
+        categoryTotals[tx.category].expense += tx.amount;
+        if (isCurrent) thisMonthExpense += tx.amount;
+      }
+    }
+
+    const netBalance = (user?.openingBalance || 0) + totalIncome - totalExpense;
+    const budgetLimit = user?.monthlyBudgetLimit || 3000;
+    const budgetUsedPct = budgetLimit > 0 ? Number(((thisMonthExpense / budgetLimit) * 100).toFixed(1)) : 0;
+    const savingsRate = totalIncome > 0 ? Number((((totalIncome - totalExpense) / totalIncome) * 100).toFixed(1)) : 0;
+
+    res.json({
+      totalIncome,
+      totalExpense,
+      netBalance,
+      thisMonthIncome,
+      thisMonthExpense,
+      monthlyBudgetLimit: budgetLimit,
+      budgetUsedPercentage: budgetUsedPct,
+      savingsRate,
+      transactionCount: userTxs.length,
+      categoryTotals,
+    });
+  });
+
+  // 9. Complete Server Backup (Subscription Protected)
+  app.get('/api/backup', requireActiveSubscription, (req, res) => {
+    const userId = req.headers['x-user-id'] as string;
+    const db = readDb();
+    const user = db.users.find(u => u.id === userId);
+    const userTxs = db.transactions.filter(t => t.userId === userId && !t.isDeleted);
+
+    const backupPayload = {
+      version: 2,
+      appName: 'PocketBalance',
+      exportedAt: new Date().toISOString(),
+      accountEmail: user?.email,
+      userPreferences: {
+        currency: user?.currency || 'USD',
+        monthlyBudgetLimit: user?.monthlyBudgetLimit || 0,
+        openingBalance: user?.openingBalance || 0,
+      },
+      transactions: userTxs,
+    };
+
+    addActivityLog(
+      userId,
+      user?.name || 'User',
+      user?.email || 'user',
+      'BACKUP_EXPORT',
+      `Exported full backup of ${userTxs.length} transactions`,
+      req
+    );
+
+    res.json(backupPayload);
+  });
+
+  // 10. Complete Server Restore (Subscription Protected)
+  app.post('/api/restore', requireActiveSubscription, (req, res) => {
+    const userId = req.headers['x-user-id'] as string;
+    const { transactions, userPreferences } = req.body;
+
+    if (!Array.isArray(transactions)) {
+      return res.status(400).json({ error: 'Invalid backup format: transactions array required.' });
+    }
+
+    const db = readDb();
+    const now = new Date().toISOString();
+    let restoredCount = 0;
+
+    for (const item of transactions) {
+      if (!item.type || item.amount === undefined || !item.category || !item.date) continue;
+
+      const newTx: Transaction = {
+        id: `tx-res-${Date.now()}-${Math.random().toString(36).substring(2, 7)}-${restoredCount}`,
+        userId,
+        type: item.type,
+        amount: Number(item.amount),
+        category: String(item.category).trim(),
+        date: String(item.date).slice(0, 10),
+        paymentMethod: item.paymentMethod || 'cash',
+        note: (item.note || '').trim(),
+        tags: Array.isArray(item.tags) ? item.tags : [],
+        createdAt: item.createdAt || now,
+        updatedAt: now,
+        isDeleted: false,
+        version: 1,
+        syncStatus: 'synced',
+      };
+
+      db.transactions.unshift(newTx);
+      restoredCount++;
+    }
+
+    // Apply restored preferences if present
+    const userIndex = db.users.findIndex(u => u.id === userId);
+    if (userIndex !== -1 && userPreferences) {
+      if (userPreferences.currency) db.users[userIndex].currency = userPreferences.currency;
+      if (userPreferences.monthlyBudgetLimit !== undefined) {
+        db.users[userIndex].monthlyBudgetLimit = Number(userPreferences.monthlyBudgetLimit);
+      }
+      if (userPreferences.openingBalance !== undefined) {
+        db.users[userIndex].openingBalance = Number(userPreferences.openingBalance);
+      }
+    }
+
+    writeDb(db);
+
+    const user = db.users.find(u => u.id === userId);
+    addActivityLog(
+      userId,
+      user?.name || 'User',
+      user?.email || 'user',
+      'BACKUP_RESTORE',
+      `Restored ${restoredCount} transactions from backup`,
+      req
+    );
+
+    res.json({
+      success: true,
+      message: `Successfully restored ${restoredCount} transaction(s).`,
+      restoredCount,
     });
   });
 
