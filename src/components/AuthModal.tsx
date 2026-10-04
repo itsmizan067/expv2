@@ -75,6 +75,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           setMode('login');
           resetForm();
         } else {
+          // Automatic 7-day free trial approval logs user directly in
           const loginRes = await loginUser(email, password);
           onSuccess(loginRes.user);
           onClose();
@@ -114,7 +115,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   {mode === 'login' ? 'Welcome Back' : 'Create Account'}
                 </h3>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  Personal Income &amp; Expense Management
+                  {mode === 'login' ? 'Personal Income & Expense Management' : '7 Days Free Trial Included • Auto Approved'}
                 </p>
               </div>
             </div>
@@ -242,7 +243,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   ? 'Please wait…'
                   : mode === 'login'
                   ? 'Sign In'
-                  : 'Create Account'}
+                  : 'Start 7-Day Free Trial'}
               </span>
               <ArrowRight className="w-4 h-4" />
             </button>
@@ -259,7 +260,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   onClick={() => switchMode('register')}
                   className="font-bold text-emerald-600 hover:underline"
                 >
-                  Sign Up — It&apos;s Free
+                  Sign Up — 7 Days Free
                 </button>
               </p>
             ) : (

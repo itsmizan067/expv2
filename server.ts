@@ -228,11 +228,32 @@ function readDb(): DatabaseSchema {
 
     // Migrate any user that still has a plaintext password (legacy seed).
     // A hashed password always contains a colon separator.
+    // Also auto-approve any user accounts with status 'pending' to 'active' with a 7-day trial.
     parsed.users = parsed.users.map(u => {
-      if (u.passwordHash && !u.passwordHash.includes(':')) {
-        return { ...u, passwordHash: hashPassword(u.passwordHash) };
+      let updated = { ...u };
+      let changed = false;
+      if (updated.status === 'pending') {
+        updated.status = 'active';
+        changed = true;
       }
-      return u;
+      if (!updated.plan) {
+        updated.plan = 'trial';
+        changed = true;
+      }
+      if (!updated.planStatus) {
+        updated.planStatus = 'active';
+        changed = true;
+      }
+      if (updated.plan === 'trial' && !updated.trialEndsAt) {
+        updated.trialEndsAt = trialEndDate();
+        changed = true;
+      }
+      if (updated.passwordHash && !updated.passwordHash.includes(':')) {
+        updated.passwordHash = hashPassword(updated.passwordHash);
+        changed = true;
+      }
+      if (changed) dirty = true;
+      return updated;
     });
 
     if (dirty) {
@@ -424,7 +445,7 @@ async function loadFromSupabase(): Promise<DatabaseSchema | null> {
       email: u.email,
       passwordHash: u.password_hash,
       role: u.role,
-      status: u.status,
+      status: u.status === 'pending' ? 'active' : (u.status || 'active'),
       createdAt: u.created_at,
       lastLoginAt: u.last_login_at,
       lastActiveAt: u.last_active_at,
@@ -434,9 +455,9 @@ async function loadFromSupabase(): Promise<DatabaseSchema | null> {
       openingBalance: u.opening_balance ? Number(u.opening_balance) : 0,
       phone: u.phone,
       profilePicture: u.profile_picture,
-      plan: u.plan,
-      planStatus: u.plan_status,
-      trialEndsAt: u.trial_ends_at,
+      plan: u.plan || 'trial',
+      planStatus: u.plan_status || 'active',
+      trialEndsAt: u.trial_ends_at || (u.plan === 'trial' || !u.plan ? trialEndDate() : undefined),
       planExpiresAt: u.plan_expires_at,
     }));
 
@@ -607,10 +628,10 @@ async function startServer() {
       return res.status(409).json({ error: 'An account with this email already exists.' });
     }
 
-    // All self-registered users start as 'user' with 'pending' status.
+    // All self-registered users start as 'user' with automatic 'active' status and a 7-day free trial.
     // Only seeded admin accounts can have elevated roles.
     const role: UserRole = 'user';
-    const status: AccountStatus = 'pending';
+    const status: AccountStatus = 'active';
     const trialEnd = trialEndDate();
 
     const newUser: User & { passwordHash: string } = {
@@ -640,14 +661,14 @@ async function startServer() {
       newUser.name,
       newUser.email,
       'ACCOUNT_REGISTER',
-      `Registered new user account (Status: ${status} — awaiting admin approval)`,
+      `Registered new user account (Status: active — 7-day free trial started)`,
       req
     );
 
     const { passwordHash: _, ...safeUser } = newUser;
     res.status(201).json({
       user: safeUser,
-      message: 'Account registered successfully. Please wait for an Admin to approve your account before logging in.',
+      message: 'Account registered successfully with 7-day free trial.',
     });
   });
 
@@ -678,11 +699,15 @@ async function startServer() {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    // Auto-approve users who were registered with 'pending' status to 'active' with 7-day trial
     if (user.status === 'pending') {
-      return res.status(403).json({
-        error: 'Your account is pending administrator approval. Please contact the administrator.',
-        status: 'pending',
-      });
+      user.status = 'active';
+      if (!user.plan) user.plan = 'trial';
+      if (!user.planStatus) user.planStatus = 'active';
+      if (!user.trialEndsAt && user.plan === 'trial') {
+        user.trialEndsAt = trialEndDate();
+      }
+      writeDb(db);
     }
 
     if (user.status === 'disabled') {
