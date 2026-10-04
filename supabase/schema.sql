@@ -27,8 +27,28 @@ CREATE TABLE IF NOT EXISTS public.users (
   plan TEXT DEFAULT 'trial',
   plan_status TEXT DEFAULT 'active',
   trial_ends_at TIMESTAMPTZ,
-  plan_expires_at TIMESTAMPTZ
+  plan_expires_at TIMESTAMPTZ,
+  email_verified BOOLEAN DEFAULT FALSE,
+  email_verified_at TIMESTAMPTZ,
+  otp_hash TEXT,
+  otp_expires_at TIMESTAMPTZ,
+  otp_attempts INT DEFAULT 0,
+  otp_last_sent_at TIMESTAMPTZ,
+  otp_purpose TEXT,
+  otp_verified_at TIMESTAMPTZ,
+  token_version INT DEFAULT 1
 );
+
+-- Migration helpers if upgrading an existing Supabase table:
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS otp_hash TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS otp_expires_at TIMESTAMPTZ;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS otp_attempts INT DEFAULT 0;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS otp_last_sent_at TIMESTAMPTZ;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS otp_purpose TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS otp_verified_at TIMESTAMPTZ;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS token_version INT DEFAULT 1;
 
 -- 2. TRANSACTIONS TABLE
 CREATE TABLE IF NOT EXISTS public.transactions (

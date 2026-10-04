@@ -1,7 +1,8 @@
 export type UserRole = 'super_admin' | 'admin' | 'user';
-export type AccountStatus = 'pending' | 'active' | 'disabled';
+export type AccountStatus = 'unverified' | 'pending' | 'active' | 'disabled';
 export type SubscriptionPlan = 'trial' | 'standard' | 'premium' | 'expired';
 export type PlanStatus = 'active' | 'expired' | 'pending_payment';
+export type OtpPurpose = 'email_verification' | 'password_reset';
 
 export interface User {
   id: string;
@@ -23,6 +24,18 @@ export interface User {
   planStatus?: PlanStatus;
   trialEndsAt?: string;
   planExpiresAt?: string;
+  // Email verification & OTP security
+  emailVerified?: boolean;
+  emailVerifiedAt?: string;
+  otpHash?: string;
+  otpExpiresAt?: string;
+  otpAttempts?: number;
+  otpLastSentAt?: string;
+  otpPurpose?: OtpPurpose;
+  otpVerifiedAt?: string;
+  otpResendCount?: number;
+  otpResendWindowStart?: string;
+  tokenVersion?: number;
 }
 
 export interface PaymentRequest {
@@ -46,7 +59,24 @@ export interface ActivityLog {
   userId: string;
   userName: string;
   userEmail: string;
-  action: 'LOGIN' | 'LOGOUT' | 'TRANSACTION_ADD' | 'TRANSACTION_UPDATE' | 'TRANSACTION_DELETE' | 'OFFLINE_SYNC' | 'ACCOUNT_REGISTER' | 'STATUS_CHANGE' | 'ACCOUNT_DELETE' | 'PAYMENT_SUBMIT' | 'PAYMENT_APPROVE' | 'PAYMENT_REJECT' | 'USER_PLAN_UPDATE';
+  action:
+    | 'LOGIN'
+    | 'LOGOUT'
+    | 'TRANSACTION_ADD'
+    | 'TRANSACTION_UPDATE'
+    | 'TRANSACTION_DELETE'
+    | 'OFFLINE_SYNC'
+    | 'ACCOUNT_REGISTER'
+    | 'STATUS_CHANGE'
+    | 'ACCOUNT_DELETE'
+    | 'PAYMENT_SUBMIT'
+    | 'PAYMENT_APPROVE'
+    | 'PAYMENT_REJECT'
+    | 'USER_PLAN_UPDATE'
+    | 'EMAIL_VERIFY'
+    | 'PASSWORD_RESET_REQUEST'
+    | 'PASSWORD_RESET_SUCCESS'
+    | 'OTP_SENT';
   details: string;
   ip?: string;
   device?: string;

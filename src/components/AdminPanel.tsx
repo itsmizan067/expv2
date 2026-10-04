@@ -22,6 +22,7 @@ import {
   ImageIcon,
   ThumbsUp,
   ThumbsDown,
+  Mail,
 } from 'lucide-react';
 import { User, ActivityLog, AccountStatus, PaymentRequest } from '../types';
 import {
@@ -302,6 +303,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
                 Pending ({pendingCount})
               </button>
               <button
+                onClick={() => setStatusFilter('unverified')}
+                className={`px-2.5 py-1 rounded-lg transition ${statusFilter === 'unverified' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+              >
+                Unverified ({users.filter(u => u.status === 'unverified').length})
+              </button>
+              <button
                 onClick={() => setStatusFilter('active')}
                 className={`px-2.5 py-1 rounded-lg transition ${statusFilter === 'active' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                   }`}
@@ -371,6 +379,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
                           <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 font-bold text-[11px]">
                             <XCircle className="w-3 h-3 text-rose-600" />
                             <span>Disabled</span>
+                          </span>
+                        )}
+                        {u.status === 'unverified' && (
+                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-300 font-bold text-[11px]">
+                            <Mail className="w-3 h-3 text-sky-600" />
+                            <span>Unverified</span>
                           </span>
                         )}
                       </td>
@@ -453,15 +467,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ adminUser }) => {
                         ) : (
                           <div className="flex items-center justify-end space-x-1.5">
 
-                            {/* Approve Button for pending */}
-                            {u.status === 'pending' && (
+                            {/* Approve Button for pending or unverified */}
+                            {(u.status === 'pending' || u.status === 'unverified') && (
                               <button
                                 id={`admin-approve-user-${u.id}`}
                                 onClick={() => handleStatusChange(u.id, 'active')}
                                 className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1 shadow-xs"
+                                title="Activate account"
                               >
                                 <UserCheck className="w-3.5 h-3.5" />
-                                <span>Approve</span>
+                                <span>{u.status === 'unverified' ? 'Verify & Activate' : 'Approve'}</span>
                               </button>
                             )}
 

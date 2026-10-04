@@ -20,6 +20,28 @@ export function setStoredUser(user: User | null): void {
   }
 }
 
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  requiresVerification?: boolean;
+  email?: string;
+  maskedEmail?: string;
+  attemptsRemaining?: number;
+  retryAfter?: number;
+
+  constructor(message: string, status: number, data?: any) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = data?.code;
+    this.requiresVerification = data?.requiresVerification;
+    this.email = data?.email;
+    this.maskedEmail = data?.maskedEmail;
+    this.attemptsRemaining = data?.attemptsRemaining;
+    this.retryAfter = data?.retryAfter;
+  }
+}
+
 /**
  * Safely parse JSON from a fetch Response, handling empty bodies and non-JSON responses gracefully.
  */
@@ -40,7 +62,7 @@ async function safeJson<T = any>(res: Response, fallbackError = 'Request failed'
       (res.status === 404
         ? 'Backend API not reachable. Please make sure the dev server is running (`npm run dev`).'
         : `${fallbackError} (HTTP ${res.status})`);
-    throw new Error(errorMsg);
+    throw new ApiError(errorMsg, res.status, data);
   }
 
   return (data || {}) as T;
@@ -65,14 +87,104 @@ export async function registerUser(payload: {
   currency?: string;
   monthlyBudgetLimit?: number;
   openingBalance?: number;
-}): Promise<{ user: User; message: string }> {
+}): Promise<{
+  success: boolean;
+  requiresVerification?: boolean;
+  email?: string;
+  maskedEmail?: string;
+  message: string;
+  user?: User;
+}> {
   const res = await fetch(`${API_BASE}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
 
-  return await safeJson<{ user: User; message: string }>(res, 'Failed to register');
+  return await safeJson(res, 'Failed to register');
+}
+
+export async function verifyEmailOtp(
+  email: string,
+  otp: string
+): Promise<{ success: boolean; user: User; token: string; message: string }> {
+  const res = await fetch(`${API_BASE}/auth/verify-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, otp }),
+  });
+
+  const data = await safeJson<{ success: boolean; user: User; token: string; message: string }>(
+    res,
+    'Failed to verify email'
+  );
+  if (data.user) {
+    setStoredUser(data.user);
+  }
+  return data;
+}
+
+export async function resendOtp(
+  email: string,
+  purpose: 'email_verification' | 'password_reset' = 'email_verification'
+): Promise<{ success: boolean; message: string; retryAfter?: number; maskedEmail?: string; alreadyVerified?: boolean }> {
+  const res = await fetch(`${API_BASE}/auth/resend-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, purpose }),
+  });
+
+  return await safeJson(res, 'Failed to resend code');
+}
+
+export async function requestPasswordReset(
+  email: string
+): Promise<{ success: boolean; message: string; maskedEmail?: string; retryAfter?: number }> {
+  const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+
+  return await safeJson(res, 'Failed to request password reset');
+}
+
+export async function verifyPasswordResetOtp(
+  email: string,
+  otp: string
+): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`${API_BASE}/auth/verify-reset-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, otp }),
+  });
+
+  return await safeJson(res, 'Failed to verify recovery code');
+}
+
+export async function resetPasswordWithOtp(
+  email: string,
+  newPassword: string,
+  otp?: string
+): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`${API_BASE}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, newPassword, otp }),
+  });
+
+  return await safeJson(res, 'Failed to reset password');
+}
+
+export async function getEmailServiceStatus(): Promise<{
+  configured: boolean;
+  host: string;
+  port: number;
+  userMasked: string;
+  from: string;
+}> {
+  const res = await fetch(`${API_BASE}/email/status`);
+  return await safeJson(res, 'Failed to get email service status');
 }
 
 export async function updateProfile(userId: string, updates: Partial<User>): Promise<User> {

@@ -6,7 +6,19 @@ import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { User, ActivityLog, Transaction, SyncQueueItem, UserRole, AccountStatus, PaymentRequest } from './src/types';
+import { User, ActivityLog, Transaction, SyncQueueItem, UserRole, AccountStatus, PaymentRequest, OtpPurpose } from './src/types';
+import { emailService } from './src/server/emailService';
+import {
+  generateOtp,
+  hashOtp,
+  verifyOtpHash,
+  maskEmail,
+  OTP_EXPIRATION_MS,
+  RESEND_COOLDOWN_MS,
+  MAX_ATTEMPTS,
+  MAX_RESENDS_PER_WINDOW,
+  RESEND_WINDOW_MS,
+} from './src/server/otpService';
 
 dotenv.config();
 
@@ -77,10 +89,16 @@ function verifyPassword(password: string, stored: string): boolean {
 // ==========================================
 
 interface DatabaseSchema {
-  users: Array<User & { passwordHash?: string }>;
+  users: Array<User & { passwordHash?: string; otpHash?: string }>;
   transactions: Transaction[];
   logs: ActivityLog[];
   paymentRequests: PaymentRequest[];
+}
+
+/** Sanitize user object to never leak sensitive hashes over API */
+function sanitizeUser(u: User & { passwordHash?: string; otpHash?: string }): User {
+  const { passwordHash: _, otpHash: __, ...safeUser } = u;
+  return safeUser;
 }
 
 // ==========================================
@@ -124,12 +142,15 @@ function buildInitialDb(): DatabaseSchema {
         passwordHash: hashPassword('Mizan123'),
         role: 'super_admin' as UserRole,
         status: 'active',
+        emailVerified: true,
+        emailVerifiedAt: '2025-01-01T00:00:00.000Z',
         createdAt: '2025-01-01T00:00:00.000Z',
         lastLoginAt: new Date().toISOString(),
         lastActiveAt: new Date().toISOString(),
         totalLogins: 0,
         currency: 'USD',
         monthlyBudgetLimit: 10000,
+        tokenVersion: 1,
       },
       {
         id: 'admin-1',
@@ -138,12 +159,15 @@ function buildInitialDb(): DatabaseSchema {
         passwordHash: hashPassword('admin123'),
         role: 'admin' as UserRole,
         status: 'active',
+        emailVerified: true,
+        emailVerifiedAt: '2025-01-01T08:00:00.000Z',
         createdAt: '2025-01-01T08:00:00.000Z',
         lastLoginAt: new Date().toISOString(),
         lastActiveAt: new Date().toISOString(),
         totalLogins: 0,
         currency: 'USD',
         monthlyBudgetLimit: 5000,
+        tokenVersion: 1,
       },
     ],
     transactions: [],
@@ -252,6 +276,15 @@ function readDb(): DatabaseSchema {
         updated.passwordHash = hashPassword(updated.passwordHash);
         changed = true;
       }
+      if (updated.status === 'active' && updated.emailVerified === undefined) {
+        updated.emailVerified = true;
+        updated.emailVerifiedAt = updated.createdAt || new Date().toISOString();
+        changed = true;
+      }
+      if (!updated.tokenVersion) {
+        updated.tokenVersion = 1;
+        changed = true;
+      }
       if (changed) dirty = true;
       return updated;
     });
@@ -355,6 +388,15 @@ async function syncAllToSupabase(db: DatabaseSchema) {
         plan_status: u.planStatus || 'active',
         trial_ends_at: u.trialEndsAt,
         plan_expires_at: u.planExpiresAt,
+        email_verified: u.emailVerified ?? (u.status === 'active'),
+        email_verified_at: u.emailVerifiedAt || null,
+        otp_hash: u.otpHash || null,
+        otp_expires_at: u.otpExpiresAt || null,
+        otp_attempts: u.otpAttempts || 0,
+        otp_last_sent_at: u.otpLastSentAt || null,
+        otp_purpose: u.otpPurpose || null,
+        otp_verified_at: u.otpVerifiedAt || null,
+        token_version: u.tokenVersion || 1,
       }));
       const { error: userErr } = await supabase.from('users').upsert(userRows, { onConflict: 'id' });
       if (userErr) console.warn('Supabase users upsert notice:', userErr.message);
@@ -459,6 +501,15 @@ async function loadFromSupabase(): Promise<DatabaseSchema | null> {
       planStatus: u.plan_status || 'active',
       trialEndsAt: u.trial_ends_at || (u.plan === 'trial' || !u.plan ? trialEndDate() : undefined),
       planExpiresAt: u.plan_expires_at,
+      emailVerified: u.email_verified ?? (u.status === 'active'),
+      emailVerifiedAt: u.email_verified_at,
+      otpHash: u.otp_hash,
+      otpExpiresAt: u.otp_expires_at,
+      otpAttempts: u.otp_attempts || 0,
+      otpLastSentAt: u.otp_last_sent_at,
+      otpPurpose: u.otp_purpose,
+      otpVerifiedAt: u.otp_verified_at,
+      tokenVersion: u.token_version || 1,
     }));
 
     const cloudTxs: Transaction[] = (txsRes.data || []).map((t: any) => ({
@@ -609,11 +660,16 @@ async function startServer() {
   };
 
   // ==========================================
-  // AUTHENTICATION ROUTES
+  // AUTHENTICATION ROUTES WITH GMAIL OTP & EMAIL VERIFICATION
   // ==========================================
 
-  // Register
-  app.post('/api/auth/register', (req, res) => {
+  // Email status inspection endpoint
+  app.get('/api/email/status', (_req, res) => {
+    res.json(emailService.getStatus());
+  });
+
+  // 1. Register: creates unverified account, generates 6-digit OTP, sends via Gmail SMTP
+  app.post('/api/auth/register', async (req, res) => {
     const { name, email, password, currency, monthlyBudgetLimit, openingBalance } = req.body;
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Name, email, and password are required' });
@@ -622,25 +678,70 @@ async function startServer() {
       return res.status(400).json({ error: 'Password must be at least 6 characters.' });
     }
 
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanName = String(name).trim();
+
     const db = readDb();
-    const existing = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (existing) {
-      return res.status(409).json({ error: 'An account with this email already exists.' });
+    const existingIndex = db.users.findIndex(u => u.email.toLowerCase() === cleanEmail);
+
+    // If an existing verified/active user exists, do not expose account existence
+    if (existingIndex !== -1) {
+      const existingUser = db.users[existingIndex];
+      if (existingUser.status === 'active' || existingUser.emailVerified) {
+        return res.status(200).json({
+          success: true,
+          requiresVerification: true,
+          email: cleanEmail,
+          maskedEmail: maskEmail(cleanEmail),
+          message: 'If an account is not already registered with this email, a 6-digit verification code has been sent.',
+        });
+      }
+
+      // Existing unverified account: regenerate OTP and resend code
+      const otp = generateOtp();
+      existingUser.name = cleanName;
+      existingUser.passwordHash = hashPassword(password);
+      existingUser.otpHash = hashOtp(otp);
+      existingUser.otpExpiresAt = new Date(Date.now() + OTP_EXPIRATION_MS).toISOString();
+      existingUser.otpAttempts = 0;
+      existingUser.otpLastSentAt = new Date().toISOString();
+      existingUser.otpPurpose = 'email_verification';
+      existingUser.status = 'unverified';
+      existingUser.emailVerified = false;
+      db.users[existingIndex] = existingUser;
+      writeDb(db);
+
+      // Send via Gmail SMTP (never log OTP!)
+      await emailService.sendVerificationOtp(cleanEmail, otp, cleanName);
+
+      addActivityLog(
+        existingUser.id,
+        existingUser.name,
+        existingUser.email,
+        'ACCOUNT_REGISTER',
+        'Refreshed unverified account; 6-digit verification code sent to email',
+        req
+      );
+
+      return res.status(200).json({
+        success: true,
+        requiresVerification: true,
+        email: cleanEmail,
+        maskedEmail: maskEmail(cleanEmail),
+        message: 'A 6-digit verification code has been sent to your email address.',
+      });
     }
 
-    // All self-registered users start as 'user' with automatic 'active' status and a 7-day free trial.
-    // Only seeded admin accounts can have elevated roles.
-    const role: UserRole = 'user';
-    const status: AccountStatus = 'active';
-    const trialEnd = trialEndDate();
-
-    const newUser: User & { passwordHash: string } = {
+    // New unverified registration
+    const otp = generateOtp();
+    const newUser: User & { passwordHash: string; otpHash?: string } = {
       id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
+      name: cleanName,
+      email: cleanEmail,
       passwordHash: hashPassword(password),
-      role,
-      status,
+      role: 'user',
+      status: 'unverified',
+      emailVerified: false,
       createdAt: new Date().toISOString(),
       lastLoginAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
@@ -650,39 +751,477 @@ async function startServer() {
       openingBalance: Number(openingBalance) || 0,
       plan: 'trial',
       planStatus: 'active',
-      trialEndsAt: trialEnd,
+      otpHash: hashOtp(otp),
+      otpExpiresAt: new Date(Date.now() + OTP_EXPIRATION_MS).toISOString(),
+      otpAttempts: 0,
+      otpLastSentAt: new Date().toISOString(),
+      otpPurpose: 'email_verification',
+      otpResendCount: 0,
+      tokenVersion: 1,
     };
 
     db.users.push(newUser);
     writeDb(db);
+
+    // Send via Gmail SMTP (never log OTP value!)
+    await emailService.sendVerificationOtp(cleanEmail, otp, cleanName);
 
     addActivityLog(
       newUser.id,
       newUser.name,
       newUser.email,
       'ACCOUNT_REGISTER',
-      `Registered new user account (Status: active — 7-day free trial started)`,
+      'Registered unverified account; 6-digit verification code dispatched',
       req
     );
 
-    const { passwordHash: _, ...safeUser } = newUser;
     res.status(201).json({
-      user: safeUser,
-      message: 'Account registered successfully with 7-day free trial.',
+      success: true,
+      requiresVerification: true,
+      email: cleanEmail,
+      maskedEmail: maskEmail(cleanEmail),
+      message: 'Registration successful! A 6-digit verification code has been sent to your email address.',
     });
   });
 
-  // Login
+  // 2. Verify Registration OTP: validates 6-digit OTP, marks email verified, activates account & trial
+  app.post('/api/auth/verify-email', (req, res) => {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      return res.status(400).json({ error: 'Email and 6-digit verification code are required' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanOtp = String(otp).trim();
+
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      return res.status(400).json({ error: 'Verification code must be exactly 6 digits.' });
+    }
+
+    const db = readDb();
+    const userIndex = db.users.findIndex(u => u.email.toLowerCase() === cleanEmail);
+
+    if (userIndex === -1) {
+      return res.status(400).json({ error: 'Invalid or expired verification code.' });
+    }
+
+    const user = db.users[userIndex];
+
+    // Already active and verified
+    if (user.emailVerified && user.status === 'active') {
+      const safeUser = sanitizeUser(user);
+      return res.json({
+        success: true,
+        message: 'Email is already verified. You can sign in now.',
+        user: safeUser,
+        token: `token-${user.id}-${Date.now()}`,
+      });
+    }
+
+    // Verify OTP Purpose
+    if (user.otpPurpose !== 'email_verification') {
+      return res.status(400).json({ error: 'Invalid verification code.' });
+    }
+
+    // Security: Check max attempts (limit 5)
+    if ((user.otpAttempts || 0) >= MAX_ATTEMPTS) {
+      // Invalidate current OTP
+      user.otpHash = undefined;
+      user.otpExpiresAt = undefined;
+      writeDb(db);
+      return res.status(400).json({
+        error: 'Maximum verification attempts (5) exceeded. This code has expired. Please request a new code.',
+        code: 'TOO_MANY_ATTEMPTS',
+      });
+    }
+
+    // Security: Check expiration (10 minutes)
+    if (!user.otpExpiresAt || new Date(user.otpExpiresAt).getTime() < Date.now()) {
+      return res.status(400).json({
+        error: 'Verification code has expired. Please request a new code.',
+        code: 'EXPIRED',
+      });
+    }
+
+    // Security: Timing-safe hash comparison
+    const isValid = verifyOtpHash(cleanOtp, user.otpHash || '');
+
+    if (!isValid) {
+      user.otpAttempts = (user.otpAttempts || 0) + 1;
+      const remaining = Math.max(0, MAX_ATTEMPTS - user.otpAttempts);
+      writeDb(db);
+
+      if (remaining === 0) {
+        user.otpHash = undefined;
+        user.otpExpiresAt = undefined;
+        writeDb(db);
+        return res.status(400).json({
+          error: 'Maximum verification attempts exceeded. This code has been invalidated. Please request a new code.',
+          code: 'TOO_MANY_ATTEMPTS',
+          attemptsRemaining: 0,
+        });
+      }
+
+      return res.status(400).json({
+        error: `Invalid verification code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`,
+        code: 'INVALID_CODE',
+        attemptsRemaining: remaining,
+      });
+    }
+
+    // Success: Mark email verified & activate account
+    user.emailVerified = true;
+    user.emailVerifiedAt = new Date().toISOString();
+    user.status = 'active';
+    user.plan = 'trial';
+    user.planStatus = 'active';
+    user.trialEndsAt = trialEndDate();
+
+    // Clear one-time OTP
+    user.otpHash = undefined;
+    user.otpExpiresAt = undefined;
+    user.otpAttempts = 0;
+    user.otpPurpose = undefined;
+    user.otpVerifiedAt = new Date().toISOString();
+
+    // Login stats
+    user.lastLoginAt = new Date().toISOString();
+    user.lastActiveAt = new Date().toISOString();
+    user.totalLogins = (user.totalLogins || 0) + 1;
+
+    db.users[userIndex] = user;
+    writeDb(db);
+
+    addActivityLog(
+      user.id,
+      user.name,
+      user.email,
+      'EMAIL_VERIFY',
+      'Email address verified successfully with 6-digit OTP. 7-day trial activated.',
+      req
+    );
+
+    const safeUser = sanitizeUser(user);
+    res.json({
+      success: true,
+      message: 'Email verified successfully! Welcome to PocketBalance.',
+      user: safeUser,
+      token: `token-${user.id}-${Date.now()}`,
+    });
+  });
+
+  // 3. Resend OTP: 60-second cooldown, hourly rate limit, never leaks account existence
+  app.post('/api/auth/resend-otp', async (req, res) => {
+    const { email, purpose = 'email_verification' } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email address is required' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanPurpose: OtpPurpose = purpose === 'password_reset' ? 'password_reset' : 'email_verification';
+
+    const db = readDb();
+    const user = db.users.find(u => u.email.toLowerCase() === cleanEmail);
+
+    // Generic response if account doesn't exist
+    if (!user) {
+      return res.json({
+        success: true,
+        message: 'If an account exists for that email, a verification code has been sent.',
+        retryAfter: 60,
+      });
+    }
+
+    // If user is already active and purpose is verification
+    if (cleanPurpose === 'email_verification' && user.emailVerified && user.status === 'active') {
+      return res.json({
+        success: true,
+        message: 'Email is already verified. Please sign in to your account.',
+        alreadyVerified: true,
+      });
+    }
+
+    // Security: 60-second cooldown check
+    if (user.otpLastSentAt) {
+      const elapsed = Date.now() - new Date(user.otpLastSentAt).getTime();
+      if (elapsed < RESEND_COOLDOWN_MS) {
+        const retryAfter = Math.ceil((RESEND_COOLDOWN_MS - elapsed) / 1000);
+        return res.status(429).json({
+          error: `Please wait ${retryAfter} second${retryAfter === 1 ? '' : 's'} before requesting another code.`,
+          retryAfter,
+          code: 'COOLDOWN_ACTIVE',
+        });
+      }
+    }
+
+    // Security: Repeated resend request limiting (5 per hour)
+    const now = Date.now();
+    const windowStart = user.otpResendWindowStart ? new Date(user.otpResendWindowStart).getTime() : 0;
+    if (now - windowStart < RESEND_WINDOW_MS) {
+      if ((user.otpResendCount || 0) >= MAX_RESENDS_PER_WINDOW) {
+        return res.status(429).json({
+          error: 'Maximum resend limit reached for this hour. Please try again later.',
+          code: 'RATE_LIMIT_EXCEEDED',
+        });
+      }
+      user.otpResendCount = (user.otpResendCount || 0) + 1;
+    } else {
+      user.otpResendWindowStart = new Date().toISOString();
+      user.otpResendCount = 1;
+    }
+
+    // Generate fresh 6-digit OTP
+    const otp = generateOtp();
+    user.otpHash = hashOtp(otp);
+    user.otpExpiresAt = new Date(Date.now() + OTP_EXPIRATION_MS).toISOString();
+    user.otpAttempts = 0;
+    user.otpLastSentAt = new Date().toISOString();
+    user.otpPurpose = cleanPurpose;
+    writeDb(db);
+
+    // Send email (never log OTP value!)
+    if (cleanPurpose === 'email_verification') {
+      await emailService.sendVerificationOtp(user.email, otp, user.name);
+    } else {
+      await emailService.sendPasswordResetOtp(user.email, otp, user.name);
+    }
+
+    addActivityLog(
+      user.id,
+      user.name,
+      user.email,
+      'OTP_SENT',
+      `Dispatched new 6-digit OTP for ${cleanPurpose}`,
+      req
+    );
+
+    res.json({
+      success: true,
+      message: 'If an account exists for that email, a verification code has been sent.',
+      retryAfter: 60,
+      maskedEmail: maskEmail(user.email),
+    });
+  });
+
+  // 4. Password Recovery: Step 1 - Request 6-digit OTP (Do not reveal account existence)
+  app.post('/api/auth/forgot-password', async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email address is required' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const db = readDb();
+    const user = db.users.find(u => u.email.toLowerCase() === cleanEmail);
+
+    if (user) {
+      // 60s cooldown check
+      if (user.otpLastSentAt) {
+        const elapsed = Date.now() - new Date(user.otpLastSentAt).getTime();
+        if (elapsed < RESEND_COOLDOWN_MS) {
+          const retryAfter = Math.ceil((RESEND_COOLDOWN_MS - elapsed) / 1000);
+          return res.status(429).json({
+            error: `Please wait ${retryAfter} second${retryAfter === 1 ? '' : 's'} before requesting another code.`,
+            retryAfter,
+            code: 'COOLDOWN_ACTIVE',
+          });
+        }
+      }
+
+      // Generate 6-digit recovery OTP
+      const otp = generateOtp();
+      user.otpHash = hashOtp(otp);
+      user.otpExpiresAt = new Date(Date.now() + OTP_EXPIRATION_MS).toISOString();
+      user.otpAttempts = 0;
+      user.otpLastSentAt = new Date().toISOString();
+      user.otpPurpose = 'password_reset';
+      writeDb(db);
+
+      // Send via Gmail SMTP (never log OTP!)
+      await emailService.sendPasswordResetOtp(user.email, otp, user.name);
+
+      addActivityLog(
+        user.id,
+        user.name,
+        user.email,
+        'PASSWORD_RESET_REQUEST',
+        'Password recovery 6-digit OTP dispatched',
+        req
+      );
+    }
+
+    // Generic response: Do not reveal account existence
+    res.json({
+      success: true,
+      message: 'If an account exists for that email, a verification code has been sent.',
+      maskedEmail: maskEmail(cleanEmail),
+      retryAfter: 60,
+    });
+  });
+
+  // 5. Password Recovery: Step 2 - Verify Reset OTP
+  app.post('/api/auth/verify-reset-otp', (req, res) => {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      return res.status(400).json({ error: 'Email and 6-digit recovery code are required' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanOtp = String(otp).trim();
+
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      return res.status(400).json({ error: 'Recovery code must be exactly 6 digits.' });
+    }
+
+    const db = readDb();
+    const user = db.users.find(u => u.email.toLowerCase() === cleanEmail);
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired verification code.', code: 'INVALID_CODE' });
+    }
+
+    if (user.otpPurpose !== 'password_reset') {
+      return res.status(400).json({ error: 'Invalid verification code.' });
+    }
+
+    // Max attempts check (limit 5)
+    if ((user.otpAttempts || 0) >= MAX_ATTEMPTS) {
+      user.otpHash = undefined;
+      writeDb(db);
+      return res.status(400).json({
+        error: 'Maximum verification attempts exceeded. This code has expired. Please request a new code.',
+        code: 'TOO_MANY_ATTEMPTS',
+      });
+    }
+
+    // Expiry check (10 min)
+    if (!user.otpExpiresAt || new Date(user.otpExpiresAt).getTime() < Date.now()) {
+      return res.status(400).json({
+        error: 'Verification code has expired. Please request a new code.',
+        code: 'EXPIRED',
+      });
+    }
+
+    // Timing-safe comparison
+    const isValid = verifyOtpHash(cleanOtp, user.otpHash || '');
+
+    if (!isValid) {
+      user.otpAttempts = (user.otpAttempts || 0) + 1;
+      const remaining = Math.max(0, MAX_ATTEMPTS - user.otpAttempts);
+      writeDb(db);
+
+      if (remaining === 0) {
+        user.otpHash = undefined;
+        writeDb(db);
+        return res.status(400).json({
+          error: 'Maximum verification attempts exceeded. Please request a new code.',
+          code: 'TOO_MANY_ATTEMPTS',
+          attemptsRemaining: 0,
+        });
+      }
+
+      return res.status(400).json({
+        error: `Invalid verification code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`,
+        code: 'INVALID_CODE',
+        attemptsRemaining: remaining,
+      });
+    }
+
+    // Mark OTP verified for password reset (valid for 15 minutes)
+    user.otpVerifiedAt = new Date().toISOString();
+    writeDb(db);
+
+    res.json({
+      success: true,
+      message: 'Code verified successfully. Please enter your new password.',
+    });
+  });
+
+  // 6. Password Recovery: Step 3 - Set New Password & Invalidate Existing Sessions
+  app.post('/api/auth/reset-password', (req, res) => {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !newPassword) {
+      return res.status(400).json({ error: 'Email and new password are required' });
+    }
+
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const db = readDb();
+    const userIndex = db.users.findIndex(u => u.email.toLowerCase() === cleanEmail);
+
+    if (userIndex === -1) {
+      return res.status(400).json({ error: 'Invalid or expired password reset session.' });
+    }
+
+    const user = db.users[userIndex];
+
+    if (user.otpPurpose !== 'password_reset') {
+      return res.status(400).json({ error: 'Invalid password reset request.' });
+    }
+
+    // Verify either recent verification timestamp (within 15 min) or valid OTP provided
+    const isFreshVerified =
+      user.otpVerifiedAt && Date.now() - new Date(user.otpVerifiedAt).getTime() < 15 * 60 * 1000;
+    const isValidOtp = otp ? verifyOtpHash(String(otp).trim(), user.otpHash || '') : false;
+
+    if (!isFreshVerified && !isValidOtp) {
+      return res.status(400).json({
+        error: 'Password reset session has expired or is invalid. Please request a new verification code.',
+        code: 'SESSION_EXPIRED',
+      });
+    }
+
+    // Update password
+    user.passwordHash = hashPassword(newPassword);
+
+    // Invalidate existing sessions: increment tokenVersion & refresh active timestamp
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    user.lastActiveAt = new Date().toISOString();
+
+    // Mark email verified if it wasn't already
+    user.emailVerified = true;
+    if (user.status === 'unverified') {
+      user.status = 'active';
+    }
+
+    // Clear all OTP fields (one-time use)
+    user.otpHash = undefined;
+    user.otpExpiresAt = undefined;
+    user.otpAttempts = 0;
+    user.otpPurpose = undefined;
+    user.otpVerifiedAt = undefined;
+
+    db.users[userIndex] = user;
+    writeDb(db);
+
+    addActivityLog(
+      user.id,
+      user.name,
+      user.email,
+      'PASSWORD_RESET_SUCCESS',
+      'Password successfully reset. All previous sessions invalidated.',
+      req
+    );
+
+    res.json({
+      success: true,
+      message: 'Your password has been reset successfully. Please sign in with your new password.',
+    });
+  });
+
+  // 7. Login: validates credentials, verifies email status, rejects unverified or disabled accounts
   app.post('/api/auth/login', (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
+    const cleanEmail = String(email).trim().toLowerCase();
     const db = readDb();
-    const userIndex = db.users.findIndex(
-      u => u.email.toLowerCase() === email.trim().toLowerCase()
-    );
+    const userIndex = db.users.findIndex(u => u.email.toLowerCase() === cleanEmail);
 
     if (userIndex === -1) {
       return res.status(401).json({ error: 'Invalid email or password' });
@@ -691,17 +1230,27 @@ async function startServer() {
     const user = db.users[userIndex];
 
     // Verify password
-    const passwordOk = user.passwordHash
-      ? verifyPassword(password, user.passwordHash)
-      : false;
+    const passwordOk = user.passwordHash ? verifyPassword(password, user.passwordHash) : false;
 
     if (!passwordOk) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Auto-approve users who were registered with 'pending' status to 'active' with 7-day trial
+    // Block unverified accounts
+    if (user.status === 'unverified' || user.emailVerified === false) {
+      return res.status(403).json({
+        error: 'Please verify your email address to activate your account.',
+        requiresVerification: true,
+        email: user.email,
+        maskedEmail: maskEmail(user.email),
+        code: 'EMAIL_NOT_VERIFIED',
+      });
+    }
+
+    // Auto-approve users who were registered with legacy 'pending' status to 'active'
     if (user.status === 'pending') {
       user.status = 'active';
+      user.emailVerified = true;
       if (!user.plan) user.plan = 'trial';
       if (!user.planStatus) user.planStatus = 'active';
       if (!user.trialEndsAt && user.plan === 'trial') {
@@ -733,10 +1282,10 @@ async function startServer() {
       req
     );
 
-    const { passwordHash: _, ...safeUser } = user;
+    const safeUser = sanitizeUser(user);
     res.json({
       user: safeUser,
-      token: `token-${user.id}-${Date.now()}`,
+      token: `token-${user.id}-${user.tokenVersion || 1}-${Date.now()}`,
     });
   });
 
@@ -768,8 +1317,7 @@ async function startServer() {
     db.users[userIndex].lastActiveAt = new Date().toISOString();
 
     writeDb(db);
-    const { passwordHash: _, ...safeUser } = db.users[userIndex];
-    res.json({ user: safeUser });
+    res.json({ user: sanitizeUser(db.users[userIndex]) });
   });
 
   // ==========================================
@@ -779,9 +1327,9 @@ async function startServer() {
   // Get all users
   app.get('/api/admin/users', requireAdmin, (req, res) => {
     const db = readDb();
-    const safeUsers = db.users.map(({ passwordHash: _, ...u }) => {
+    const safeUsers = db.users.map(u => {
       const userTxCount = db.transactions.filter(t => t.userId === u.id && !t.isDeleted).length;
-      return { ...u, transactionCount: userTxCount };
+      return { ...sanitizeUser(u), transactionCount: userTxCount };
     });
     res.json({ users: safeUsers });
   });
@@ -830,8 +1378,7 @@ async function startServer() {
       req
     );
 
-    const { passwordHash: _, ...safeUser } = targetUser;
-    res.json({ user: safeUser, message: `Account status updated to ${status}` });
+    res.json({ user: sanitizeUser(targetUser), message: `Account status updated to ${status}` });
   });
 
   // Admin: update a user's subscription plan directly
@@ -872,8 +1419,7 @@ async function startServer() {
       req
     );
 
-    const { passwordHash: _, ...safeUser } = targetUser;
-    res.json({ user: safeUser, message: `User plan updated to ${plan}` });
+    res.json({ user: sanitizeUser(targetUser), message: `User plan updated to ${plan}` });
   });
 
   // Delete user (admin can delete users; super_admin can delete admins too)
@@ -971,8 +1517,7 @@ async function startServer() {
       req
     );
 
-    const { passwordHash: _, ...safeUser } = target;
-    res.json({ user: safeUser, message: `Role updated to ${role}` });
+    res.json({ user: sanitizeUser(target), message: `Role updated to ${role}` });
   });
 
   // ==========================================
@@ -1206,10 +1751,9 @@ async function startServer() {
     const db = readDb();
     const user = db.users.find(u => u.id === userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    const { passwordHash: _, ...safe } = user;
     const active = isSubscriptionActive(user);
     const pendingPayment = db.paymentRequests.find(p => p.userId === userId && p.status === 'pending');
-    res.json({ user: safe, subscriptionActive: active, pendingPayment: pendingPayment || null });
+    res.json({ user: sanitizeUser(user), subscriptionActive: active, pendingPayment: pendingPayment || null });
   });
 
   // Submit a payment request (user sends bKash txid + screenshot)
