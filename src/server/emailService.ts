@@ -234,28 +234,30 @@ export class NodemailerEmailService implements IEmailService {
 
     if (user && pass) {
       try {
+        const isGmail = host === 'smtp.gmail.com' || user.endsWith('@gmail.com');
         const transportConfig: any = {
           host,
           port,
           secure,
           auth: { user, pass },
+          pool: true,
+          maxConnections: 3,
           tls: {
             rejectUnauthorized: true,
           },
-          // 15-second socket timeout to prevent hung requests
-          connectionTimeout: 15000,
-          greetingTimeout: 15000,
-          socketTimeout: 20000,
+          // Socket timeouts to prevent hung requests
+          connectionTimeout: 10000,
+          greetingTimeout: 10000,
+          socketTimeout: 15000,
         };
 
-        // If explicitly pointing to smtp.gmail.com, nodemailer's built-in service definition
-        // handles Gmail's ports & host resolution automatically
-        if (host === 'smtp.gmail.com' && !process.env.SMTP_PORT) {
+        // When using Gmail, use nodemailer's built-in service definition for optimal TLS & speed
+        if (isGmail) {
           transportConfig.service = 'gmail';
         }
 
         this.transporter = nodemailer.createTransport(transportConfig);
-        console.log(`📧 [EmailService] Gmail SMTP Transport initialized for: ${this.maskUser(user)} on ${host}:${port}`);
+        console.log(`📧 [EmailService] Gmail SMTP Transport initialized for: ${this.maskUser(user)} (mode: ${isGmail ? 'gmail-service-pool' : host + ':' + port})`);
       } catch (err: any) {
         console.error('❌ [EmailService] Failed to create nodemailer transport:', err?.message || err);
       }

@@ -64,6 +64,32 @@
       "emailVerified": true,
       "emailVerifiedAt": "2026-09-25T17:43:01.081Z",
       "tokenVersion": 1
+    },
+    {
+      "id": "user-1791215296956-45z72",
+      "name": "Pocket Test",
+      "email": "pocket.balance.exp@gmail.com",
+      "passwordHash": "8a48b52877d5a2269ffd4c776c093d32:89dfb2f5ae6290f3d32c8ed03cb2fd5a7b54b0b9ca2d016bae7a2faf72d3de9440565cc52cb73425769a6d22888cfa170e505b10e97a74c3d67c1fb354465d89",
+      "role": "user",
+      "status": "unverified",
+      "emailVerified": false,
+      "createdAt": "2026-10-05T15:48:16.972Z",
+      "lastLoginAt": "2026-10-05T15:48:16.972Z",
+      "lastActiveAt": "2026-10-05T15:48:16.972Z",
+      "totalLogins": 0,
+      "currency": "USD",
+      "monthlyBudgetLimit": 3000,
+      "openingBalance": 0,
+      "plan": "trial",
+      "planStatus": "active",
+      "otpHash": "fb39e94bb80aa150e9cb4c5b8d49acc2fb55219b70ac70e05375922fe5c4a20c",
+      "otpExpiresAt": "2026-10-05T16:08:48.004Z",
+      "otpAttempts": 0,
+      "otpLastSentAt": "2026-10-05T15:58:48.004Z",
+      "otpPurpose": "password_reset",
+      "otpResendCount": 0,
+      "tokenVersion": 1,
+      "trialEndsAt": "2026-10-12T15:48:21.362Z"
     }
   ],
   "transactions": [
@@ -79,7 +105,9 @@
       "tags": [],
       "createdAt": "2026-09-25T19:38:59.561Z",
       "updatedAt": "2026-09-25T19:38:59.570Z",
-      "syncStatus": "synced"
+      "syncStatus": "synced",
+      "version": 1,
+      "isDeleted": false
     },
     {
       "id": "tx-1790365124478-5umai",
@@ -93,7 +121,9 @@
       "tags": [],
       "createdAt": "2026-09-25T19:38:44.478Z",
       "updatedAt": "2026-09-25T19:38:44.491Z",
-      "syncStatus": "synced"
+      "syncStatus": "synced",
+      "version": 1,
+      "isDeleted": false
     },
     {
       "id": "tx-1790364662367-2hmbw",
@@ -107,7 +137,9 @@
       "tags": [],
       "createdAt": "2026-09-25T19:31:02.367Z",
       "updatedAt": "2026-09-25T19:31:02.371Z",
-      "syncStatus": "synced"
+      "syncStatus": "synced",
+      "version": 1,
+      "isDeleted": false
     },
     {
       "id": "tx-1790364647783-2g49h",
@@ -121,7 +153,9 @@
       "tags": [],
       "createdAt": "2026-09-25T19:30:47.783Z",
       "updatedAt": "2026-09-25T19:30:47.792Z",
-      "syncStatus": "synced"
+      "syncStatus": "synced",
+      "version": 1,
+      "isDeleted": false
     },
     {
       "id": "tx-1790364633581-jfz33",
@@ -135,10 +169,56 @@
       "tags": [],
       "createdAt": "2026-09-25T19:30:33.581Z",
       "updatedAt": "2026-09-25T19:30:33.584Z",
-      "syncStatus": "synced"
+      "syncStatus": "synced",
+      "version": 1,
+      "isDeleted": false
     }
   ],
   "logs": [
+    {
+      "id": "log-1791215931527-kgayv",
+      "userId": "user-1791215296956-45z72",
+      "userName": "Pocket Test",
+      "userEmail": "pocket.balance.exp@gmail.com",
+      "action": "PASSWORD_RESET_REQUEST",
+      "details": "Password recovery 6-digit OTP dispatched",
+      "ip": "127.0.0.1",
+      "device": "curl/8.7.1",
+      "timestamp": "2026-10-05T15:58:51.527Z"
+    },
+    {
+      "id": "log-1791215750944-v1n0j",
+      "userId": "user-1791215296956-45z72",
+      "userName": "Pocket Test",
+      "userEmail": "pocket.balance.exp@gmail.com",
+      "action": "ACCOUNT_REGISTER",
+      "details": "Refreshed unverified account; 6-digit verification code sent to email",
+      "ip": "127.0.0.1",
+      "device": "curl/8.7.1",
+      "timestamp": "2026-10-05T15:55:50.944Z"
+    },
+    {
+      "id": "log-1791215725285-hj0ss",
+      "userId": "user-1791215296956-45z72",
+      "userName": "Pocket Test",
+      "userEmail": "pocket.balance.exp@gmail.com",
+      "action": "ACCOUNT_REGISTER",
+      "details": "Refreshed unverified account; 6-digit verification code sent to email",
+      "ip": "127.0.0.1",
+      "device": "curl/8.7.1",
+      "timestamp": "2026-10-05T15:55:25.285Z"
+    },
+    {
+      "id": "log-1791215301367-70mvx",
+      "userId": "user-1791215296956-45z72",
+      "userName": "Mizan Test",
+      "userEmail": "pocket.balance.exp@gmail.com",
+      "action": "ACCOUNT_REGISTER",
+      "details": "Registered unverified account; 6-digit verification code dispatched",
+      "ip": "127.0.0.1",
+      "device": "curl/8.7.1",
+      "timestamp": "2026-10-05T15:48:21.367Z"
+    },
     {
       "id": "log-1791143425771-qgns1",
       "userId": "user-1791143425729-j70er",
@@ -364,5 +444,6 @@
       "reviewedAt": "2026-09-25T19:36:15.340Z",
       "reviewedBy": "Mizan (Super Admin)"
     }
-  ]
+  ],
+  "processedMutations": {}
 }

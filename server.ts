@@ -758,16 +758,13 @@ async function startServer() {
     const db = readDb();
     const existingIndex = db.users.findIndex(u => u.email.toLowerCase() === cleanEmail);
 
-    // If an existing verified/active user exists, do not expose account existence
+    // If an existing verified/active user exists, return clear message so user knows to log in
     if (existingIndex !== -1) {
       const existingUser = db.users[existingIndex];
       if (existingUser.status === 'active' || existingUser.emailVerified) {
-        return res.status(200).json({
-          success: true,
-          requiresVerification: true,
-          email: cleanEmail,
-          maskedEmail: maskEmail(cleanEmail),
-          message: 'If an account is not already registered with this email, a 6-digit verification code has been sent.',
+        return res.status(400).json({
+          error: 'An account with this email address already exists. Please sign in or use Forgot Password.',
+          code: 'EMAIL_ALREADY_EXISTS',
         });
       }
 
@@ -786,7 +783,13 @@ async function startServer() {
       writeDb(db);
 
       // Send via Gmail SMTP (never log OTP!)
-      await emailService.sendVerificationOtp(cleanEmail, otp, cleanName);
+      const sendResult = await emailService.sendVerificationOtp(cleanEmail, otp, cleanName);
+      if (!sendResult.success) {
+        return res.status(502).json({
+          error: sendResult.error || 'Failed to dispatch verification email via Gmail. Please verify SMTP settings.',
+          code: 'EMAIL_DELIVERY_FAILED',
+        });
+      }
 
       addActivityLog(
         existingUser.id,
@@ -838,7 +841,13 @@ async function startServer() {
     writeDb(db);
 
     // Send via Gmail SMTP (never log OTP value!)
-    await emailService.sendVerificationOtp(cleanEmail, otp, cleanName);
+    const sendResult = await emailService.sendVerificationOtp(cleanEmail, otp, cleanName);
+    if (!sendResult.success) {
+      return res.status(502).json({
+        error: sendResult.error || 'Failed to dispatch verification email via Gmail. Please check SMTP settings.',
+        code: 'EMAIL_DELIVERY_FAILED',
+      });
+    }
 
     addActivityLog(
       newUser.id,
@@ -1054,10 +1063,16 @@ async function startServer() {
     writeDb(db);
 
     // Send email (never log OTP value!)
-    if (cleanPurpose === 'email_verification') {
-      await emailService.sendVerificationOtp(user.email, otp, user.name);
-    } else {
-      await emailService.sendPasswordResetOtp(user.email, otp, user.name);
+    const sendResult =
+      cleanPurpose === 'email_verification'
+        ? await emailService.sendVerificationOtp(user.email, otp, user.name)
+        : await emailService.sendPasswordResetOtp(user.email, otp, user.name);
+
+    if (!sendResult.success) {
+      return res.status(502).json({
+        error: sendResult.error || 'Failed to dispatch verification code via Gmail. Please check SMTP settings.',
+        code: 'EMAIL_DELIVERY_FAILED',
+      });
     }
 
     addActivityLog(
@@ -1112,7 +1127,13 @@ async function startServer() {
       writeDb(db);
 
       // Send via Gmail SMTP (never log OTP!)
-      await emailService.sendPasswordResetOtp(user.email, otp, user.name);
+      const sendResult = await emailService.sendPasswordResetOtp(user.email, otp, user.name);
+      if (!sendResult.success) {
+        return res.status(502).json({
+          error: sendResult.error || 'Failed to dispatch password recovery code via Gmail. Please check SMTP settings.',
+          code: 'EMAIL_DELIVERY_FAILED',
+        });
+      }
 
       addActivityLog(
         user.id,
