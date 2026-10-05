@@ -228,9 +228,12 @@ export class NodemailerEmailService implements IEmailService {
     const host = process.env.SMTP_HOST || 'smtp.gmail.com';
     const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
     const secure = process.env.SMTP_SECURE === 'true' || port === 465;
-    const user = (process.env.SMTP_USER || '').trim();
-    // Auto-strip spaces in Google App Password (users often copy with 4-char space grouping)
-    const pass = (process.env.SMTP_PASSWORD || '').replace(/\s+/g, '').trim();
+    const user = (process.env.SMTP_USER || process.env.GMAIL_USER || '').replace(/^["']|["']$/g, '').trim();
+    // Auto-strip quotes and spaces in Google App Password (users often copy with 4-char space grouping or quotes)
+    const pass = (process.env.SMTP_PASSWORD || process.env.GMAIL_APP_PASSWORD || '')
+      .replace(/^["']|["']$/g, '')
+      .replace(/\s+/g, '')
+      .trim();
 
     if (user && pass) {
       try {
@@ -264,8 +267,11 @@ export class NodemailerEmailService implements IEmailService {
     } else {
       this.transporter = null;
       if (!this.hasWarnedMissingCredentials) {
-        console.log('ℹ️ [EmailService] Gmail SMTP credentials (SMTP_USER/SMTP_PASSWORD) not configured.');
-        console.log('   Email verification & password reset are running in SIMULATED FALLBACK mode until valid credentials are added to .env (locally) or Render Dashboard Environment (production).');
+        const missing: string[] = [];
+        if (!user) missing.push('SMTP_USER');
+        if (!pass) missing.push('SMTP_PASSWORD');
+        console.log(`ℹ️ [EmailService] Missing Gmail credentials: ${missing.join(' and ')}.`);
+        console.log('   Add them to your Render Dashboard (Environment tab) or Render Secret Files (.env) to enable live email delivery.');
         this.hasWarnedMissingCredentials = true;
       }
     }

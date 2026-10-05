@@ -19,10 +19,10 @@ services:
       - key: SMTP_SECURE
         value: "false"
       - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASSWORD
-        sync: false
+        value: pocket.balance.exp@gmail.com
       - key: SMTP_FROM
+        value: '"PocketBalance" <pocket.balance.exp@gmail.com>'
+      - key: SMTP_PASSWORD
         sync: false
       - key: OTP_SECRET
         generateValue: true
