@@ -90,6 +90,33 @@
       "otpResendCount": 0,
       "tokenVersion": 1,
       "trialEndsAt": "2026-10-12T15:48:21.362Z"
+    },
+    {
+      "id": "user-1791216211121-9do7o",
+      "name": "M Cloud",
+      "email": "mizan.cloud.9@gmail.com",
+      "passwordHash": "2dc72d531167336d940642608a40b6fa:34c8bdc22413f0ac24b379de5471fbeb0e89c9c9e476fff4ca78690ac7cbd5f0ce8d095b1e0b382824f26ff24491a3248db0cbc62de9c55d2e3e4ac43017e9c2",
+      "role": "user",
+      "status": "unverified",
+      "emailVerified": false,
+      "createdAt": "2026-10-05T16:03:31.153Z",
+      "lastLoginAt": "2026-10-05T16:03:31.153Z",
+      "lastActiveAt": "2026-10-05T16:03:31.153Z",
+      "totalLogins": 0,
+      "currency": "BDT",
+      "monthlyBudgetLimit": 3000,
+      "openingBalance": 0,
+      "plan": "trial",
+      "planStatus": "active",
+      "otpHash": "e2346f2307a1608c2168ba0d2767a6d3e732a69d5dfa965977d8d07ccd85a32e",
+      "otpExpiresAt": "2026-10-05T18:07:24.326Z",
+      "otpAttempts": 0,
+      "otpLastSentAt": "2026-10-05T17:57:24.326Z",
+      "otpPurpose": "email_verification",
+      "otpResendCount": 1,
+      "tokenVersion": 1,
+      "trialEndsAt": "2026-10-12T16:03:35.143Z",
+      "otpResendWindowStart": "2026-10-05T17:54:02.490Z"
     }
   ],
   "transactions": [
@@ -175,6 +202,50 @@
     }
   ],
   "logs": [
+    {
+      "id": "log-1791223047677-wazll",
+      "userId": "user-1791216211121-9do7o",
+      "userName": "M Cloud",
+      "userEmail": "mizan.cloud.9@gmail.com",
+      "action": "OTP_SENT",
+      "details": "Dispatched fresh 6-digit OTP upon sign-in attempt for unverified account",
+      "ip": "127.0.0.1",
+      "device": "curl/8.7.1",
+      "timestamp": "2026-10-05T17:57:27.677Z"
+    },
+    {
+      "id": "log-1791222861791-qmmk0",
+      "userId": "user-1791216211121-9do7o",
+      "userName": "M Cloud",
+      "userEmail": "mizan.cloud.9@gmail.com",
+      "action": "ACCOUNT_REGISTER",
+      "details": "Refreshed unverified account; 6-digit verification code sent to email",
+      "ip": "127.0.0.1",
+      "device": "curl/8.7.1",
+      "timestamp": "2026-10-05T17:54:21.791Z"
+    },
+    {
+      "id": "log-1791222846371-sx3kr",
+      "userId": "user-1791216211121-9do7o",
+      "userName": "M Cloud",
+      "userEmail": "mizan.cloud.9@gmail.com",
+      "action": "OTP_SENT",
+      "details": "Dispatched new 6-digit OTP for email_verification",
+      "ip": "127.0.0.1",
+      "device": "curl/8.7.1",
+      "timestamp": "2026-10-05T17:54:06.371Z"
+    },
+    {
+      "id": "log-1791216215150-qj8dx",
+      "userId": "user-1791216211121-9do7o",
+      "userName": "M Cloud",
+      "userEmail": "mizan.cloud.9@gmail.com",
+      "action": "ACCOUNT_REGISTER",
+      "details": "Registered unverified account; 6-digit verification code dispatched",
+      "ip": "127.0.0.1",
+      "device": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+      "timestamp": "2026-10-05T16:03:35.150Z"
+    },
     {
       "id": "log-1791215931527-kgayv",
       "userId": "user-1791215296956-45z72",

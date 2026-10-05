@@ -389,9 +389,11 @@ export class NodemailerEmailService implements IEmailService {
 
     const text = `Hello ${name},\n\nYour PocketBalance email verification code is: ${otp}\nThis code is valid for 10 minutes.\n\nNever share this code with anyone.`;
 
+    // Include the OTP code in the subject line so each email appears as an independent,
+    // un-collapsed thread in Gmail, and can be viewed immediately in notifications!
     return this.sendEmail({
       to: email,
-      subject: 'Verify your PocketBalance account with your 6-digit code',
+      subject: `Your PocketBalance Verification Code is ${otp}`,
       html,
       text,
     });
@@ -411,7 +413,7 @@ export class NodemailerEmailService implements IEmailService {
 
     return this.sendEmail({
       to: email,
-      subject: 'PocketBalance Password Reset Verification Code',
+      subject: `Your PocketBalance Password Reset Code is ${otp}`,
       html,
       text,
     });

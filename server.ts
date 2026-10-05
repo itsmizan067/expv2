@@ -1308,7 +1308,7 @@ async function startServer() {
   });
 
   // 7. Login: validates credentials, verifies email status, rejects unverified or disabled accounts
-  app.post('/api/auth/login', (req, res) => {
+  app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
@@ -1331,10 +1331,42 @@ async function startServer() {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Block unverified accounts
+    // Block unverified accounts & automatically provide a fresh OTP if expired or cooldown passed
     if (user.status === 'unverified' || user.emailVerified === false) {
+      const now = Date.now();
+      const isExpired = !user.otpExpiresAt || new Date(user.otpExpiresAt).getTime() < now;
+      const lastSent = user.otpLastSentAt ? new Date(user.otpLastSentAt).getTime() : 0;
+      const cooldownElapsed = now - lastSent >= RESEND_COOLDOWN_MS;
+
+      let dispatchedNewCode = false;
+      if (isExpired || cooldownElapsed) {
+        // Generate and dispatch fresh 6-digit OTP
+        const otp = generateOtp();
+        user.otpHash = hashOtp(otp);
+        user.otpExpiresAt = new Date(now + OTP_EXPIRATION_MS).toISOString();
+        user.otpAttempts = 0;
+        user.otpLastSentAt = new Date(now).toISOString();
+        user.otpPurpose = 'email_verification';
+        writeDb(db);
+
+        const sendResult = await emailService.sendVerificationOtp(user.email, otp, user.name);
+        if (sendResult.success) {
+          dispatchedNewCode = true;
+          addActivityLog(
+            user.id,
+            user.name,
+            user.email,
+            'OTP_SENT',
+            'Dispatched fresh 6-digit OTP upon sign-in attempt for unverified account',
+            req
+          );
+        }
+      }
+
       return res.status(403).json({
-        error: 'Please verify your email address to activate your account.',
+        error: dispatchedNewCode
+          ? 'Your account is not verified yet. A fresh 6-digit code has just been sent to your email.'
+          : 'Please enter the 6-digit verification code sent to your email to activate your account.',
         requiresVerification: true,
         email: user.email,
         maskedEmail: maskEmail(user.email),

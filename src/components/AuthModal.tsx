@@ -156,7 +156,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setCooldown(60);
         setOtp('');
         setMode('verify-email');
-        setError('Please verify your email address with the 6-digit code to activate your account.');
+        if (err.message && err.message.includes('fresh 6-digit code')) {
+          setSuccessNotice(err.message);
+          setError('');
+        } else {
+          setError(err.message || 'Please verify your email address with the 6-digit code to activate your account.');
+        }
       } else {
         setError(err.message || 'Authentication failed. Please check your credentials.');
       }
