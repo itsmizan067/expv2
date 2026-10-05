@@ -736,6 +736,12 @@ async function startServer() {
     res.json(emailService.getStatus());
   });
 
+  // Live SMTP connection & auth test endpoint
+  app.get('/api/email/verify', async (_req, res) => {
+    const result = await emailService.testConnection();
+    res.status(result.success ? 200 : 400).json(result);
+  });
+
   // 1. Register: creates unverified account, generates 6-digit OTP, sends via Gmail SMTP
   app.post('/api/auth/register', async (req, res) => {
     const { name, email, password, currency, monthlyBudgetLimit, openingBalance } = req.body;

@@ -1,4 +1,8 @@
 import nodemailer, { Transporter } from 'nodemailer';
+import dotenv from 'dotenv';
+
+// Ensure environment variables are loaded immediately regardless of ESM import order
+dotenv.config();
 
 export interface SendEmailOptions {
   to: string;
@@ -31,7 +35,12 @@ export interface IEmailService {
   isConfigured(): boolean;
 
   /**
-   * Optional helper to inspect SMTP connection status.
+   * Test the live SMTP handshake and authentication against Gmail.
+   */
+  testConnection(): Promise<{ success: boolean; message: string; details?: any }>;
+
+  /**
+   * Inspect SMTP configuration and mode.
    */
   getStatus(): {
     configured: boolean;
@@ -39,6 +48,7 @@ export interface IEmailService {
     port: number;
     userMasked: string;
     from: string;
+    mode: 'live_gmail_smtp' | 'development_simulation';
   };
 }
 
@@ -218,12 +228,13 @@ export class NodemailerEmailService implements IEmailService {
     const host = process.env.SMTP_HOST || 'smtp.gmail.com';
     const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
     const secure = process.env.SMTP_SECURE === 'true' || port === 465;
-    const user = process.env.SMTP_USER || '';
-    const pass = process.env.SMTP_PASSWORD || '';
+    const user = (process.env.SMTP_USER || '').trim();
+    // Auto-strip spaces in Google App Password (users often copy with 4-char space grouping)
+    const pass = (process.env.SMTP_PASSWORD || '').replace(/\s+/g, '').trim();
 
     if (user && pass) {
       try {
-        this.transporter = nodemailer.createTransport({
+        const transportConfig: any = {
           host,
           port,
           secure,
@@ -231,15 +242,28 @@ export class NodemailerEmailService implements IEmailService {
           tls: {
             rejectUnauthorized: true,
           },
-        });
+          // 15-second socket timeout to prevent hung requests
+          connectionTimeout: 15000,
+          greetingTimeout: 15000,
+          socketTimeout: 20000,
+        };
+
+        // If explicitly pointing to smtp.gmail.com, nodemailer's built-in service definition
+        // handles Gmail's ports & host resolution automatically
+        if (host === 'smtp.gmail.com' && !process.env.SMTP_PORT) {
+          transportConfig.service = 'gmail';
+        }
+
+        this.transporter = nodemailer.createTransport(transportConfig);
         console.log(`📧 [EmailService] Gmail SMTP Transport initialized for: ${this.maskUser(user)} on ${host}:${port}`);
       } catch (err: any) {
         console.error('❌ [EmailService] Failed to create nodemailer transport:', err?.message || err);
       }
     } else {
+      this.transporter = null;
       if (!this.hasWarnedMissingCredentials) {
-        console.log('ℹ️ [EmailService] Gmail SMTP credentials (SMTP_USER/SMTP_PASSWORD) not configured in environment.');
-        console.log('   Email verification & password reset will run in development mode until credentials are provided in .env');
+        console.log('ℹ️ [EmailService] Gmail SMTP credentials (SMTP_USER/SMTP_PASSWORD) not configured in .env.');
+        console.log('   Email verification & password reset are running in SIMULATED FALLBACK mode until valid credentials are added to .env');
         this.hasWarnedMissingCredentials = true;
       }
     }
@@ -252,13 +276,56 @@ export class NodemailerEmailService implements IEmailService {
   }
 
   public isConfigured(): boolean {
-    return Boolean(this.transporter && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
+    const user = (process.env.SMTP_USER || '').trim();
+    const pass = (process.env.SMTP_PASSWORD || '').replace(/\s+/g, '').trim();
+    return Boolean(this.transporter && user && pass);
+  }
+
+  public async testConnection(): Promise<{ success: boolean; message: string; details?: any }> {
+    this.initTransporter();
+
+    if (!this.transporter) {
+      return {
+        success: false,
+        message: 'SMTP credentials missing: Please provide SMTP_USER and SMTP_PASSWORD in your .env file.',
+        details: {
+          smtpUserConfigured: Boolean(process.env.SMTP_USER),
+          smtpPasswordConfigured: Boolean(process.env.SMTP_PASSWORD),
+        },
+      };
+    }
+
+    try {
+      await this.transporter.verify();
+      return {
+        success: true,
+        message: `SMTP connection and authentication verified successfully with ${process.env.SMTP_HOST || 'smtp.gmail.com'} for ${this.maskUser(process.env.SMTP_USER || '')}!`,
+      };
+    } catch (err: any) {
+      console.error('❌ [EmailService] Connection verification failed:', err);
+      return {
+        success: false,
+        message: err?.message || 'SMTP verification failed',
+        details: {
+          code: err?.code,
+          command: err?.command,
+          response: err?.response,
+          responseCode: err?.responseCode,
+          hint:
+            err?.code === 'EAUTH'
+              ? 'Gmail authentication failed: Make sure 2-Step Verification is enabled and you are using a 16-character Google App Password (not your standard Gmail login password).'
+              : err?.code === 'ETIMEDOUT' || err?.code === 'ECONNREFUSED'
+              ? `Could not reach ${process.env.SMTP_HOST || 'smtp.gmail.com'}:${process.env.SMTP_PORT || 587}. Your network/host may be blocking outbound port ${process.env.SMTP_PORT || 587}. Try port 465 with SMTP_SECURE=true.`
+              : 'Check SMTP host, port, and security settings in .env.',
+        },
+      };
+    }
   }
 
   public getStatus() {
     const host = process.env.SMTP_HOST || 'smtp.gmail.com';
     const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
-    const user = process.env.SMTP_USER || '';
+    const user = (process.env.SMTP_USER || '').trim();
     const from = process.env.SMTP_FROM || (user ? `"PocketBalance" <${user}>` : '"PocketBalance" <no-reply@pocketbalance.app>');
 
     return {
@@ -267,6 +334,7 @@ export class NodemailerEmailService implements IEmailService {
       port,
       userMasked: this.maskUser(user),
       from,
+      mode: this.isConfigured() ? ('live_gmail_smtp' as const) : ('development_simulation' as const),
     };
   }
 
