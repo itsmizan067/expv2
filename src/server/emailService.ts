@@ -48,7 +48,7 @@ export interface IEmailService {
     port: number;
     userMasked: string;
     from: string;
-    mode: 'live_gmail_smtp' | 'development_simulation';
+    mode: 'live_gmail_smtp' | 'development_simulation' | 'live_resend_http';
   };
 }
 
@@ -284,21 +284,44 @@ export class NodemailerEmailService implements IEmailService {
   }
 
   public isConfigured(): boolean {
-    const user = (process.env.SMTP_USER || '').trim();
-    const pass = (process.env.SMTP_PASSWORD || '').replace(/\s+/g, '').trim();
+    const resendKey = (process.env.RESEND_API_KEY || '').trim();
+    if (resendKey) return true;
+
+    const user = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
+    const pass = (process.env.SMTP_PASSWORD || process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '').trim();
     return Boolean(this.transporter && user && pass);
   }
 
   public async testConnection(): Promise<{ success: boolean; message: string; details?: any }> {
+    const resendKey = (process.env.RESEND_API_KEY || '').trim();
+    if (resendKey) {
+      try {
+        const res = await fetch('https://api.resend.com/api-keys', {
+          headers: { Authorization: `Bearer ${resendKey}` },
+        });
+        if (res.ok) {
+          return {
+            success: true,
+            message: 'Resend API connection and authentication verified successfully over HTTPS (Render-compatible)!',
+          };
+        }
+      } catch (err: any) {
+        return {
+          success: false,
+          message: 'Failed to connect to Resend API: ' + (err?.message || err),
+        };
+      }
+    }
+
     this.initTransporter();
 
     if (!this.transporter) {
       return {
         success: false,
-        message: 'SMTP credentials missing: Please provide SMTP_USER and SMTP_PASSWORD in your .env file.',
+        message: 'SMTP credentials missing: Please provide SMTP_USER and SMTP_PASSWORD in your .env or Render Dashboard.',
         details: {
-          smtpUserConfigured: Boolean(process.env.SMTP_USER),
-          smtpPasswordConfigured: Boolean(process.env.SMTP_PASSWORD),
+          smtpUserConfigured: Boolean(process.env.SMTP_USER || process.env.GMAIL_USER),
+          smtpPasswordConfigured: Boolean(process.env.SMTP_PASSWORD || process.env.GMAIL_APP_PASSWORD),
         },
       };
     }
@@ -311,6 +334,7 @@ export class NodemailerEmailService implements IEmailService {
       };
     } catch (err: any) {
       console.error('❌ [EmailService] Connection verification failed:', err);
+      const isTimeout = err?.code === 'ETIMEDOUT' || err?.message?.toLowerCase().includes('timeout');
       return {
         success: false,
         message: err?.message || 'SMTP verification failed',
@@ -319,35 +343,74 @@ export class NodemailerEmailService implements IEmailService {
           command: err?.command,
           response: err?.response,
           responseCode: err?.responseCode,
-          hint:
-            err?.code === 'EAUTH'
-              ? 'Gmail authentication failed: Make sure 2-Step Verification is enabled and you are using a 16-character Google App Password (not your standard Gmail login password).'
-              : err?.code === 'ETIMEDOUT' || err?.code === 'ECONNREFUSED'
-              ? `Could not reach ${process.env.SMTP_HOST || 'smtp.gmail.com'}:${process.env.SMTP_PORT || 587}. Your network/host may be blocking outbound port ${process.env.SMTP_PORT || 587}. Try port 465 with SMTP_SECURE=true.`
-              : 'Check SMTP host, port, and security settings in .env.',
+          hint: isTimeout
+            ? "Outbound SMTP connection timed out. Render's free tier blocks outbound SMTP ports (587, 465, 25). To send emails from Render, add a free RESEND_API_KEY (over HTTPS port 443) or upgrade to an individual paid plan."
+            : err?.code === 'EAUTH'
+            ? 'Gmail authentication failed: Make sure 2-Step Verification is enabled and you are using a 16-character Google App Password (not your standard Gmail login password).'
+            : 'Check SMTP host, port, and security settings.',
         },
       };
     }
   }
 
   public getStatus() {
+    const resendKey = (process.env.RESEND_API_KEY || '').trim();
     const host = process.env.SMTP_HOST || 'smtp.gmail.com';
     const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
-    const user = (process.env.SMTP_USER || '').trim();
+    const user = (process.env.SMTP_USER || process.env.GMAIL_USER || '').replace(/^["']|["']$/g, '').trim();
     const from = process.env.SMTP_FROM || (user ? `"PocketBalance" <${user}>` : '"PocketBalance" <no-reply@pocketbalance.app>');
 
     return {
       configured: this.isConfigured(),
-      host,
-      port,
-      userMasked: this.maskUser(user),
+      host: resendKey ? 'api.resend.com (HTTPS)' : host,
+      port: resendKey ? 443 : port,
+      userMasked: resendKey ? 'Resend API Key' : this.maskUser(user),
       from,
-      mode: this.isConfigured() ? ('live_gmail_smtp' as const) : ('development_simulation' as const),
+      mode: resendKey
+        ? ('live_resend_http' as const)
+        : this.isConfigured()
+        ? ('live_gmail_smtp' as const)
+        : ('development_simulation' as const),
     };
   }
 
   public async sendEmail(options: SendEmailOptions): Promise<{ success: boolean; error?: string }> {
-    // Re-check transporter in case env vars were set after startup
+    const resendKey = (process.env.RESEND_API_KEY || '').trim();
+
+    // 1. If RESEND_API_KEY is configured, dispatch via HTTPS (bypasses Render SMTP port blocking!)
+    if (resendKey) {
+      try {
+        const fromAddr = process.env.RESEND_FROM || 'PocketBalance <onboarding@resend.dev>';
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${resendKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: fromAddr,
+            to: [options.to],
+            subject: options.subject,
+            html: options.html,
+            text: options.text,
+          }),
+        });
+
+        const data: any = await res.json();
+        if (res.ok && data?.id) {
+          console.log(`✅ [EmailService:Resend] Real email delivered to ${this.maskUser(options.to)} via HTTPS (ID: ${data.id})`);
+          return { success: true };
+        } else {
+          console.error('❌ [EmailService:Resend] Delivery failed:', data);
+          return { success: false, error: data?.message || 'Resend HTTP delivery failure' };
+        }
+      } catch (err: any) {
+        console.error('❌ [EmailService:Resend] Error calling Resend API:', err?.message || err);
+        return { success: false, error: err?.message || 'Failed to dispatch email via Resend API' };
+      }
+    }
+
+    // 2. Otherwise use Nodemailer SMTP
     if (!this.transporter) {
       this.initTransporter();
     }
@@ -357,8 +420,6 @@ export class NodemailerEmailService implements IEmailService {
       (process.env.SMTP_USER ? `"PocketBalance" <${process.env.SMTP_USER}>` : '"PocketBalance" <no-reply@pocketbalance.app>');
 
     if (!this.transporter) {
-      // In development fallback mode without SMTP credentials:
-      // Never log the OTP value! Only indicate that message was delivered to mock/fallback handler.
       console.log(`📬 [EmailService Fallback] Simulated email dispatch to ${this.maskUser(options.to)} | Subject: "${options.subject}"`);
       return { success: true };
     }
@@ -376,9 +437,13 @@ export class NodemailerEmailService implements IEmailService {
       return { success: true };
     } catch (err: any) {
       console.error(`❌ [EmailService] Failed to send email to ${this.maskUser(options.to)}:`, err?.message || err);
+      const isTimeout = err?.code === 'ETIMEDOUT' || err?.message?.toLowerCase().includes('timeout');
+      const errorMsg = isTimeout
+        ? "Outbound SMTP port 587/465 is blocked by Render's free tier firewall. To send real emails from Render, add a free RESEND_API_KEY (HTTPS port 443) or upgrade to an individual paid plan."
+        : err?.message || 'SMTP delivery failure. Please check your Gmail App Password and SMTP settings.';
       return {
         success: false,
-        error: err?.message || 'SMTP delivery failure. Please check your Gmail App Password and SMTP settings.',
+        error: errorMsg,
       };
     }
   }
