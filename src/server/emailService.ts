@@ -48,7 +48,7 @@ export interface IEmailService {
     port: number;
     userMasked: string;
     from: string;
-    mode: 'live_gmail_smtp' | 'development_simulation' | 'live_resend_http';
+    mode: 'live_gmail_smtp' | 'development_simulation' | 'live_resend_http' | 'live_brevo_http';
   };
 }
 
@@ -284,6 +284,9 @@ export class NodemailerEmailService implements IEmailService {
   }
 
   public isConfigured(): boolean {
+    const brevoKey = (process.env.BREVO_API_KEY || '').trim();
+    if (brevoKey) return true;
+
     const resendKey = (process.env.RESEND_API_KEY || '').trim();
     if (resendKey) return true;
 
@@ -293,6 +296,26 @@ export class NodemailerEmailService implements IEmailService {
   }
 
   public async testConnection(): Promise<{ success: boolean; message: string; details?: any }> {
+    const brevoKey = (process.env.BREVO_API_KEY || '').trim();
+    if (brevoKey) {
+      try {
+        const res = await fetch('https://api.brevo.com/v3/account', {
+          headers: { 'api-key': brevoKey, 'accept': 'application/json' },
+        });
+        if (res.ok) {
+          return {
+            success: true,
+            message: 'Brevo API connection and authentication verified successfully over HTTPS (Render-compatible)!',
+          };
+        }
+      } catch (err: any) {
+        return {
+          success: false,
+          message: 'Failed to connect to Brevo API: ' + (err?.message || err),
+        };
+      }
+    }
+
     const resendKey = (process.env.RESEND_API_KEY || '').trim();
     if (resendKey) {
       try {
@@ -344,7 +367,7 @@ export class NodemailerEmailService implements IEmailService {
           response: err?.response,
           responseCode: err?.responseCode,
           hint: isTimeout
-            ? "Outbound SMTP connection timed out. Render's free tier blocks outbound SMTP ports (587, 465, 25). To send emails from Render, add a free RESEND_API_KEY (over HTTPS port 443) or upgrade to an individual paid plan."
+            ? "Outbound SMTP connection timed out. Render's free tier blocks outbound SMTP ports (587, 465, 25). To send emails from Render, add a free BREVO_API_KEY (brevo.com, no domain needed) or RESEND_API_KEY over HTTPS port 443."
             : err?.code === 'EAUTH'
             ? 'Gmail authentication failed: Make sure 2-Step Verification is enabled and you are using a 16-character Google App Password (not your standard Gmail login password).'
             : 'Check SMTP host, port, and security settings.',
@@ -354,30 +377,77 @@ export class NodemailerEmailService implements IEmailService {
   }
 
   public getStatus() {
+    const brevoKey = (process.env.BREVO_API_KEY || '').trim();
     const resendKey = (process.env.RESEND_API_KEY || '').trim();
     const host = process.env.SMTP_HOST || 'smtp.gmail.com';
     const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
     const user = (process.env.SMTP_USER || process.env.GMAIL_USER || '').replace(/^["']|["']$/g, '').trim();
     const from = process.env.SMTP_FROM || (user ? `"PocketBalance" <${user}>` : '"PocketBalance" <no-reply@pocketbalance.app>');
 
+    const mode = brevoKey
+      ? ('live_brevo_http' as const)
+      : resendKey
+      ? ('live_resend_http' as const)
+      : this.isConfigured()
+      ? ('live_gmail_smtp' as const)
+      : ('development_simulation' as const);
+
+    const activeHost = brevoKey ? 'api.brevo.com (HTTPS)' : resendKey ? 'api.resend.com (HTTPS)' : host;
+    const activePort = brevoKey || resendKey ? 443 : port;
+    const activeUser = brevoKey ? 'Brevo API Key' : resendKey ? 'Resend API Key' : this.maskUser(user);
+
     return {
       configured: this.isConfigured(),
-      host: resendKey ? 'api.resend.com (HTTPS)' : host,
-      port: resendKey ? 443 : port,
-      userMasked: resendKey ? 'Resend API Key' : this.maskUser(user),
+      host: activeHost,
+      port: activePort,
+      userMasked: activeUser,
       from,
-      mode: resendKey
-        ? ('live_resend_http' as const)
-        : this.isConfigured()
-        ? ('live_gmail_smtp' as const)
-        : ('development_simulation' as const),
+      mode,
     };
   }
 
   public async sendEmail(options: SendEmailOptions): Promise<{ success: boolean; error?: string }> {
+    const brevoKey = (process.env.BREVO_API_KEY || '').trim();
     const resendKey = (process.env.RESEND_API_KEY || '').trim();
 
-    // 1. If RESEND_API_KEY is configured, dispatch via HTTPS (bypasses Render SMTP port blocking!)
+    // 1. If BREVO_API_KEY is configured, dispatch via Brevo HTTPS API (Sends to ANY email, no domain required, works on Render Free Tier!)
+    if (brevoKey) {
+      try {
+        const senderEmail = (process.env.SMTP_USER || 'pocket.balance.exp@gmail.com').trim();
+        const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'accept': 'application/json',
+            'api-key': brevoKey,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            sender: {
+              name: 'PocketBalance',
+              email: senderEmail,
+            },
+            to: [{ email: options.to }],
+            subject: options.subject,
+            htmlContent: options.html,
+            textContent: options.text,
+          }),
+        });
+
+        const data: any = await res.json();
+        if (res.ok && (data?.messageId || data?.id)) {
+          console.log(`✅ [EmailService:Brevo] Real email delivered to ${this.maskUser(options.to)} via HTTPS (ID: ${data.messageId || data.id})`);
+          return { success: true };
+        } else {
+          console.error('❌ [EmailService:Brevo] Delivery failed:', data);
+          return { success: false, error: data?.message || 'Brevo HTTP delivery failure' };
+        }
+      } catch (err: any) {
+        console.error('❌ [EmailService:Brevo] Error calling Brevo API:', err?.message || err);
+        return { success: false, error: err?.message || 'Failed to dispatch email via Brevo API' };
+      }
+    }
+
+    // 2. If RESEND_API_KEY is configured, dispatch via Resend HTTPS API
     if (resendKey) {
       try {
         const fromAddr = process.env.RESEND_FROM || 'PocketBalance <onboarding@resend.dev>';
@@ -402,7 +472,11 @@ export class NodemailerEmailService implements IEmailService {
           return { success: true };
         } else {
           console.error('❌ [EmailService:Resend] Delivery failed:', data);
-          return { success: false, error: data?.message || 'Resend HTTP delivery failure' };
+          let errText = data?.message || 'Resend HTTP delivery failure';
+          if (errText.includes('testing emails to your own email address')) {
+            errText = 'Resend free sandbox only allows sending to pocket.balance.exp@gmail.com unless you verify a domain. To send to any recipient for free on Render, use a free BREVO_API_KEY (brevo.com, no domain needed).';
+          }
+          return { success: false, error: errText };
         }
       } catch (err: any) {
         console.error('❌ [EmailService:Resend] Error calling Resend API:', err?.message || err);
