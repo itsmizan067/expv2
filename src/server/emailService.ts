@@ -264,8 +264,8 @@ export class NodemailerEmailService implements IEmailService {
     } else {
       this.transporter = null;
       if (!this.hasWarnedMissingCredentials) {
-        console.log('ℹ️ [EmailService] Gmail SMTP credentials (SMTP_USER/SMTP_PASSWORD) not configured in .env.');
-        console.log('   Email verification & password reset are running in SIMULATED FALLBACK mode until valid credentials are added to .env');
+        console.log('ℹ️ [EmailService] Gmail SMTP credentials (SMTP_USER/SMTP_PASSWORD) not configured.');
+        console.log('   Email verification & password reset are running in SIMULATED FALLBACK mode until valid credentials are added to .env (locally) or Render Dashboard Environment (production).');
         this.hasWarnedMissingCredentials = true;
       }
     }
