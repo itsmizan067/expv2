@@ -28,6 +28,13 @@ function fmt(n: number, currency: string) {
   }).format(n);
 }
 
+function fmtNum(n: number) {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Math.abs(n));
+}
+
 function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
 }
@@ -247,11 +254,11 @@ export const MonthlyReport: React.FC<MonthlyReportProps> = ({ transactions, user
         <table className="w-full text-xs text-left">
           <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
             <tr>
-              <th className="py-3 px-4">Date</th>
-              <th className="py-3 px-4 text-right text-emerald-600">Cash In</th>
-              <th className="py-3 px-4 text-right text-rose-600">Cash Out</th>
-              <th className="py-3 px-4 text-right">Net</th>
-              <th className="py-3 px-4 text-right text-slate-700">Current Cash</th>
+              <th className="py-3 px-3 sm:px-4 whitespace-nowrap">Date</th>
+              <th className="py-3 px-3 sm:px-4 text-right text-emerald-600 whitespace-nowrap">Cash In</th>
+              <th className="py-3 px-3 sm:px-4 text-right text-rose-600 whitespace-nowrap">Cash Out</th>
+              <th className="py-3 px-3 sm:px-4 text-right whitespace-nowrap">Net</th>
+              <th className="py-3 px-3 sm:px-4 text-right text-slate-700 whitespace-nowrap">Current Cash</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
@@ -261,29 +268,29 @@ export const MonthlyReport: React.FC<MonthlyReportProps> = ({ transactions, user
               const hasActivity = row.cashIn > 0 || row.cashOut > 0;
               return (
                 <tr key={i} className={`transition-colors ${isToday ? 'bg-violet-50/60' : hasActivity ? 'hover:bg-slate-50' : 'opacity-50'}`}>
-                  <td className="py-2.5 px-4">
+                  <td className="py-2.5 px-3 sm:px-4 whitespace-nowrap">
                     <div className={`font-semibold ${isToday ? 'text-violet-700' : 'text-slate-800'}`}>
                       {dateLabel(row.date)}
-                      {isToday && <span className="ml-2 px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[10px] font-bold rounded">Today</span>}
+                      {isToday && <span className="ml-1.5 px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[10px] font-bold rounded">Today</span>}
                     </div>
-                    {row.txCount > 0 && <div className="text-[10px] text-slate-400">{row.txCount} transaction{row.txCount > 1 ? 's' : ''}</div>}
+                    {row.txCount > 0 && <div className="text-[10px] text-slate-400 whitespace-nowrap">Transection({row.txCount})</div>}
                   </td>
-                  <td className="py-2.5 px-4 text-right">
-                    {row.cashIn > 0 ? <span className="font-bold text-emerald-600">+{fmt(row.cashIn, currency)}</span> : <span className="text-slate-300">—</span>}
+                  <td className="py-2.5 px-3 sm:px-4 text-right whitespace-nowrap">
+                    {row.cashIn > 0 ? <span className="font-bold text-emerald-600">+{fmtNum(row.cashIn)}</span> : <span className="text-slate-300">—</span>}
                   </td>
-                  <td className="py-2.5 px-4 text-right">
-                    {row.cashOut > 0 ? <span className="font-bold text-rose-600">-{fmt(row.cashOut, currency)}</span> : <span className="text-slate-300">—</span>}
+                  <td className="py-2.5 px-3 sm:px-4 text-right whitespace-nowrap">
+                    {row.cashOut > 0 ? <span className="font-bold text-rose-600">-{fmtNum(row.cashOut)}</span> : <span className="text-slate-300">—</span>}
                   </td>
-                  <td className="py-2.5 px-4 text-right">
+                  <td className="py-2.5 px-3 sm:px-4 text-right whitespace-nowrap">
                     {hasActivity ? (
                       <span className={`font-bold ${net >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {net >= 0 ? '+' : ''}{fmt(net, currency)}
+                        {net >= 0 ? '+' : '-'}{fmtNum(net)}
                       </span>
                     ) : <span className="text-slate-300">—</span>}
                   </td>
-                  <td className="py-2.5 px-4 text-right">
+                  <td className="py-2.5 px-3 sm:px-4 text-right whitespace-nowrap">
                     <span className={`font-bold ${row.balance >= 0 ? 'text-slate-900' : 'text-rose-600'}`}>
-                      {fmt(row.balance, currency)}
+                      {row.balance < 0 ? '-' : ''}{fmtNum(row.balance)}
                     </span>
                   </td>
                 </tr>

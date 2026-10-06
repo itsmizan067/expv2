@@ -586,7 +586,7 @@ export default function App() {
       {!isAdmin && (
         <nav
           aria-label="Mobile Navigation"
-          className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 text-white z-40 px-3 py-1.5 flex items-center justify-around"
+          className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t-0 text-white z-40 px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] flex items-center justify-around shadow-[0_-4px_20px_rgba(0,0,0,0.35)]"
         >
           <button
             id="mobile-nav-dashboard"
