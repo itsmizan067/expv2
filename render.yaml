@@ -24,7 +24,5 @@ services:
         value: '"PocketBalance" <pocket.balance.exp@gmail.com>'
       - key: SMTP_PASSWORD
         sync: false
-      - key: RESEND_API_KEY
-        sync: false
       - key: OTP_SECRET
         generateValue: true

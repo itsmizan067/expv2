@@ -742,8 +742,8 @@ async function startServer() {
     res.status(result.success ? 200 : 400).json(result);
   });
 
-  // 1. Register: creates unverified account, generates 6-digit OTP, sends via Gmail SMTP
-  app.post('/api/auth/register', async (req, res) => {
+  // 1. Register: creates account with 7-day free trial auto-approved
+  app.post('/api/auth/register', (req, res) => {
     const { name, email, password, currency, monthlyBudgetLimit, openingBalance } = req.body;
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Name, email, and password are required' });
@@ -758,112 +758,53 @@ async function startServer() {
     const db = readDb();
     const existingIndex = db.users.findIndex(u => u.email.toLowerCase() === cleanEmail);
 
-    // If an existing verified/active user exists, return clear message so user knows to log in
     if (existingIndex !== -1) {
-      const existingUser = db.users[existingIndex];
-      if (existingUser.status === 'active' || existingUser.emailVerified) {
-        return res.status(400).json({
-          error: 'An account with this email address already exists. Please sign in or use Forgot Password.',
-          code: 'EMAIL_ALREADY_EXISTS',
-        });
-      }
-
-      // Existing unverified account: regenerate OTP and resend code
-      const otp = generateOtp();
-      existingUser.name = cleanName;
-      existingUser.passwordHash = hashPassword(password);
-      existingUser.otpHash = hashOtp(otp);
-      existingUser.otpExpiresAt = new Date(Date.now() + OTP_EXPIRATION_MS).toISOString();
-      existingUser.otpAttempts = 0;
-      existingUser.otpLastSentAt = new Date().toISOString();
-      existingUser.otpPurpose = 'email_verification';
-      existingUser.status = 'unverified';
-      existingUser.emailVerified = false;
-      db.users[existingIndex] = existingUser;
-      writeDb(db);
-
-      // Send via Gmail SMTP (never log OTP!)
-      const sendResult = await emailService.sendVerificationOtp(cleanEmail, otp, cleanName);
-      if (!sendResult.success) {
-        return res.status(502).json({
-          error: sendResult.error || 'Failed to dispatch verification email via Gmail. Please verify SMTP settings.',
-          code: 'EMAIL_DELIVERY_FAILED',
-        });
-      }
-
-      addActivityLog(
-        existingUser.id,
-        existingUser.name,
-        existingUser.email,
-        'ACCOUNT_REGISTER',
-        'Refreshed unverified account; 6-digit verification code sent to email',
-        req
-      );
-
-      return res.status(200).json({
-        success: true,
-        requiresVerification: true,
-        email: cleanEmail,
-        maskedEmail: maskEmail(cleanEmail),
-        message: 'A 6-digit verification code has been sent to your email address.',
+      return res.status(409).json({
+        error: 'An account with this email address already exists. Please sign in.',
+        code: 'EMAIL_ALREADY_EXISTS',
       });
     }
 
-    // New unverified registration
-    const otp = generateOtp();
-    const newUser: User & { passwordHash: string; otpHash?: string } = {
+    const trialEnd = trialEndDate();
+    const newUser: User & { passwordHash: string } = {
       id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       name: cleanName,
       email: cleanEmail,
       passwordHash: hashPassword(password),
       role: 'user',
-      status: 'unverified',
-      emailVerified: false,
+      status: 'active',
+      emailVerified: true,
       createdAt: new Date().toISOString(),
       lastLoginAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
-      totalLogins: 0,
+      totalLogins: 1,
       currency: currency || 'USD',
       monthlyBudgetLimit: Number(monthlyBudgetLimit) || 3000,
       openingBalance: Number(openingBalance) || 0,
       plan: 'trial',
       planStatus: 'active',
-      otpHash: hashOtp(otp),
-      otpExpiresAt: new Date(Date.now() + OTP_EXPIRATION_MS).toISOString(),
-      otpAttempts: 0,
-      otpLastSentAt: new Date().toISOString(),
-      otpPurpose: 'email_verification',
-      otpResendCount: 0,
+      trialEndsAt: trialEnd,
       tokenVersion: 1,
     };
 
     db.users.push(newUser);
     writeDb(db);
 
-    // Send via Gmail SMTP (never log OTP value!)
-    const sendResult = await emailService.sendVerificationOtp(cleanEmail, otp, cleanName);
-    if (!sendResult.success) {
-      return res.status(502).json({
-        error: sendResult.error || 'Failed to dispatch verification email via Gmail. Please check SMTP settings.',
-        code: 'EMAIL_DELIVERY_FAILED',
-      });
-    }
-
     addActivityLog(
       newUser.id,
       newUser.name,
       newUser.email,
       'ACCOUNT_REGISTER',
-      'Registered unverified account; 6-digit verification code dispatched',
+      'Registered account with 7-day free trial auto-approval',
       req
     );
 
+    const safeUser = sanitizeUser(newUser);
     res.status(201).json({
       success: true,
-      requiresVerification: true,
-      email: cleanEmail,
-      maskedEmail: maskEmail(cleanEmail),
-      message: 'Registration successful! A 6-digit verification code has been sent to your email address.',
+      user: safeUser,
+      token: `token-${newUser.id}-${Date.now()}`,
+      message: 'Account created successfully! Enjoy your 7-day free trial.',
     });
   });
 
@@ -1331,51 +1272,8 @@ async function startServer() {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Block unverified accounts & automatically provide a fresh OTP if expired or cooldown passed
-    if (user.status === 'unverified' || user.emailVerified === false) {
-      const now = Date.now();
-      const isExpired = !user.otpExpiresAt || new Date(user.otpExpiresAt).getTime() < now;
-      const lastSent = user.otpLastSentAt ? new Date(user.otpLastSentAt).getTime() : 0;
-      const cooldownElapsed = now - lastSent >= RESEND_COOLDOWN_MS;
-
-      let dispatchedNewCode = false;
-      if (isExpired || cooldownElapsed) {
-        // Generate and dispatch fresh 6-digit OTP
-        const otp = generateOtp();
-        user.otpHash = hashOtp(otp);
-        user.otpExpiresAt = new Date(now + OTP_EXPIRATION_MS).toISOString();
-        user.otpAttempts = 0;
-        user.otpLastSentAt = new Date(now).toISOString();
-        user.otpPurpose = 'email_verification';
-        writeDb(db);
-
-        const sendResult = await emailService.sendVerificationOtp(user.email, otp, user.name);
-        if (sendResult.success) {
-          dispatchedNewCode = true;
-          addActivityLog(
-            user.id,
-            user.name,
-            user.email,
-            'OTP_SENT',
-            'Dispatched fresh 6-digit OTP upon sign-in attempt for unverified account',
-            req
-          );
-        }
-      }
-
-      return res.status(403).json({
-        error: dispatchedNewCode
-          ? 'Your account is not verified yet. A fresh 6-digit code has just been sent to your email.'
-          : 'Please enter the 6-digit verification code sent to your email to activate your account.',
-        requiresVerification: true,
-        email: user.email,
-        maskedEmail: maskEmail(user.email),
-        code: 'EMAIL_NOT_VERIFIED',
-      });
-    }
-
-    // Auto-approve users who were registered with legacy 'pending' status to 'active'
-    if (user.status === 'pending') {
+    // Auto-approve users who were registered with legacy 'pending' or 'unverified' status to 'active'
+    if (user.status === 'pending' || user.status === 'unverified') {
       user.status = 'active';
       user.emailVerified = true;
       if (!user.plan) user.plan = 'trial';
