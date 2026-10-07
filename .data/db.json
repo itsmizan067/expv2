@@ -108,24 +108,29 @@
       "tokenVersion": 1
     },
     {
-      "id": "user-1791362124998-5199w",
+      "id": "user-1791363964960-z8oe0",
       "name": "Kabir Sing",
       "email": "blue.shadow.9.hr@gmail.com",
-      "passwordHash": "68e66c73ac7d2e7567d5ca05a315ebf4:a1b8f0d5a823530ef0bb705881685a9359a99d402fb14ab955a9a7ac8b9200ed82eb554af36e3e68f57147754538ff3de18208530a867c047eff61339804184d",
+      "passwordHash": "d7e9dc4103a08b00df4a484069ebe3e8:43ca51c2e3dd1e936621f1f27acf6147843b859989e4287e7332f76dc24850b55b11c48ab8067f2d81cc2d47fbdb221364b9ee5d6faa90e75f4e3a5fa513c3a1",
       "role": "user",
       "status": "active",
       "emailVerified": true,
-      "createdAt": "2026-10-07T08:35:25.031Z",
-      "lastLoginAt": "2026-10-07T08:35:25.031Z",
-      "lastActiveAt": "2026-10-07T08:35:25.031Z",
+      "createdAt": "2026-10-07T09:06:04.997Z",
+      "lastLoginAt": "2026-10-07T09:06:34.409Z",
+      "lastActiveAt": "2026-10-07T09:06:34.409Z",
       "totalLogins": 1,
-      "currency": "BDT",
+      "currency": "USD",
       "monthlyBudgetLimit": 3000,
       "openingBalance": 0,
       "plan": "trial",
       "planStatus": "active",
-      "trialEndsAt": "2026-10-14T08:35:24.998Z",
-      "tokenVersion": 1
+      "otpAttempts": 0,
+      "otpLastSentAt": "2026-10-07T09:06:04.998Z",
+      "otpResendCount": 0,
+      "tokenVersion": 1,
+      "trialEndsAt": "2026-10-14T09:06:34.409Z",
+      "emailVerifiedAt": "2026-10-07T09:06:34.409Z",
+      "otpVerifiedAt": "2026-10-07T09:06:34.409Z"
     }
   ],
   "transactions": [
@@ -211,6 +216,39 @@
     }
   ],
   "logs": [
+    {
+      "id": "log-1791363994418-b67wv",
+      "userId": "user-1791363964960-z8oe0",
+      "userName": "Kabir Sing",
+      "userEmail": "blue.shadow.9.hr@gmail.com",
+      "action": "EMAIL_VERIFY",
+      "details": "Email address verified successfully with 6-digit OTP. 7-day trial activated.",
+      "ip": "127.0.0.1",
+      "device": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+      "timestamp": "2026-10-07T09:06:34.418Z"
+    },
+    {
+      "id": "log-1791363970858-vwwf9",
+      "userId": "user-1791363964960-z8oe0",
+      "userName": "Kabir Sing",
+      "userEmail": "blue.shadow.9.hr@gmail.com",
+      "action": "ACCOUNT_REGISTER",
+      "details": "Registered unverified account; 6-digit verification code sent to Gmail",
+      "ip": "127.0.0.1",
+      "device": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+      "timestamp": "2026-10-07T09:06:10.858Z"
+    },
+    {
+      "id": "log-1791363956989-s9th4",
+      "userId": "super-admin-1",
+      "userName": "Mizan (Super Admin)",
+      "userEmail": "mizan.boss@gmail.com",
+      "action": "ACCOUNT_DELETE",
+      "details": "Permanently deleted account of Kabir Sing (blue.shadow.9.hr@gmail.com)",
+      "ip": "127.0.0.1",
+      "device": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+      "timestamp": "2026-10-07T09:05:56.989Z"
+    },
     {
       "id": "log-1791362125039-b2h8w",
       "userId": "user-1791362124998-5199w",
