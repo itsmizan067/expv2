@@ -86,6 +86,46 @@
       "otpResendCount": 0,
       "tokenVersion": 1,
       "trialEndsAt": "2026-10-12T15:48:21.362Z"
+    },
+    {
+      "id": "user-1791361996879-r2510",
+      "name": "Demo Mizan",
+      "email": "mizan67vu@gmail.com",
+      "passwordHash": "24e201b747b340d5be7187e373b2bed2:b38640eb3e0624137d343701666bb7c1ef544076f93d206f8ed44366adf6c663d93d568014b74d32f1bec8313f1f9e01b4ec17017662bfac82975b957ef64fbe",
+      "role": "user",
+      "status": "active",
+      "emailVerified": true,
+      "createdAt": "2026-10-07T08:33:16.914Z",
+      "lastLoginAt": "2026-10-07T08:33:16.914Z",
+      "lastActiveAt": "2026-10-07T08:33:16.914Z",
+      "totalLogins": 1,
+      "currency": "BDT",
+      "monthlyBudgetLimit": 3000,
+      "openingBalance": 0,
+      "plan": "trial",
+      "planStatus": "active",
+      "trialEndsAt": "2026-10-14T08:33:16.879Z",
+      "tokenVersion": 1
+    },
+    {
+      "id": "user-1791362124998-5199w",
+      "name": "Kabir Sing",
+      "email": "blue.shadow.9.hr@gmail.com",
+      "passwordHash": "68e66c73ac7d2e7567d5ca05a315ebf4:a1b8f0d5a823530ef0bb705881685a9359a99d402fb14ab955a9a7ac8b9200ed82eb554af36e3e68f57147754538ff3de18208530a867c047eff61339804184d",
+      "role": "user",
+      "status": "active",
+      "emailVerified": true,
+      "createdAt": "2026-10-07T08:35:25.031Z",
+      "lastLoginAt": "2026-10-07T08:35:25.031Z",
+      "lastActiveAt": "2026-10-07T08:35:25.031Z",
+      "totalLogins": 1,
+      "currency": "BDT",
+      "monthlyBudgetLimit": 3000,
+      "openingBalance": 0,
+      "plan": "trial",
+      "planStatus": "active",
+      "trialEndsAt": "2026-10-14T08:35:24.998Z",
+      "tokenVersion": 1
     }
   ],
   "transactions": [
@@ -171,6 +211,28 @@
     }
   ],
   "logs": [
+    {
+      "id": "log-1791362125039-b2h8w",
+      "userId": "user-1791362124998-5199w",
+      "userName": "Kabir Sing",
+      "userEmail": "blue.shadow.9.hr@gmail.com",
+      "action": "ACCOUNT_REGISTER",
+      "details": "Registered account with 7-day free trial auto-approval",
+      "ip": "127.0.0.1",
+      "device": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+      "timestamp": "2026-10-07T08:35:25.039Z"
+    },
+    {
+      "id": "log-1791361996922-c7iwe",
+      "userId": "user-1791361996879-r2510",
+      "userName": "Demo Mizan",
+      "userEmail": "mizan67vu@gmail.com",
+      "action": "ACCOUNT_REGISTER",
+      "details": "Registered account with 7-day free trial auto-approval",
+      "ip": "127.0.0.1",
+      "device": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+      "timestamp": "2026-10-07T08:33:16.922Z"
+    },
     {
       "id": "log-1791360976728-ibrvc",
       "userId": "super-admin-1",

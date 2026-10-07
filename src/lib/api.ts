@@ -89,9 +89,12 @@ export async function registerUser(payload: {
   openingBalance?: number;
 }): Promise<{
   success: boolean;
-  user: User;
-  token: string;
-  message?: string;
+  requiresVerification?: boolean;
+  email?: string;
+  maskedEmail?: string;
+  message: string;
+  user?: User;
+  token?: string;
 }> {
   const res = await fetch(`${API_BASE}/auth/register`, {
     method: 'POST',
@@ -101,9 +104,12 @@ export async function registerUser(payload: {
 
   const data = await safeJson<{
     success: boolean;
-    user: User;
-    token: string;
-    message?: string;
+    requiresVerification?: boolean;
+    email?: string;
+    maskedEmail?: string;
+    message: string;
+    user?: User;
+    token?: string;
   }>(res, 'Failed to register');
 
   if (data.user) {
