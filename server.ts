@@ -742,6 +742,25 @@ async function startServer() {
     res.status(result.success ? 200 : 400).json(result);
   });
 
+  // Live test email dispatch endpoint
+  app.get('/api/email/test-send', async (req, res) => {
+    const targetEmail = String(req.query.email || process.env.SMTP_USER || 'pocket.balance.exp@gmail.com').trim();
+    const testOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const result = await emailService.sendVerificationOtp(targetEmail, testOtp, 'PocketBalance Tester');
+    if (result.success) {
+      res.json({
+        success: true,
+        message: `Real test OTP email sent to ${targetEmail}! Check your inbox (or spam folder).`,
+        otpDispatched: testOtp,
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error,
+      });
+    }
+  });
+
   // 1. Register: creates account with 7-day free trial auto-approved
   app.post('/api/auth/register', (req, res) => {
     const { name, email, password, currency, monthlyBudgetLimit, openingBalance } = req.body;

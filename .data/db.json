@@ -8,9 +8,9 @@
       "role": "super_admin",
       "status": "active",
       "createdAt": "2025-01-01T00:00:00.000Z",
-      "lastLoginAt": "2026-09-25T19:36:01.336Z",
-      "lastActiveAt": "2026-09-25T19:36:01.336Z",
-      "totalLogins": 2,
+      "lastLoginAt": "2026-10-07T08:15:42.074Z",
+      "lastActiveAt": "2026-10-07T08:15:42.074Z",
+      "totalLogins": 3,
       "currency": "USD",
       "monthlyBudgetLimit": 10000,
       "plan": "trial",
@@ -86,29 +86,6 @@
       "otpResendCount": 0,
       "tokenVersion": 1,
       "trialEndsAt": "2026-10-12T15:48:21.362Z"
-    },
-    {
-      "id": "user-1791216211121-9do7o",
-      "name": "M Cloud",
-      "email": "mizan.cloud.9@gmail.com",
-      "passwordHash": "2dc72d531167336d940642608a40b6fa:34c8bdc22413f0ac24b379de5471fbeb0e89c9c9e476fff4ca78690ac7cbd5f0ce8d095b1e0b382824f26ff24491a3248db0cbc62de9c55d2e3e4ac43017e9c2",
-      "role": "user",
-      "status": "active",
-      "emailVerified": true,
-      "createdAt": "2026-10-05T16:03:31.153Z",
-      "lastLoginAt": "2026-10-05T16:03:31.153Z",
-      "lastActiveAt": "2026-10-05T16:03:31.153Z",
-      "totalLogins": 0,
-      "currency": "BDT",
-      "monthlyBudgetLimit": 3000,
-      "openingBalance": 0,
-      "plan": "trial",
-      "planStatus": "active",
-      "otpLastSentAt": "2026-10-05T17:57:24.326Z",
-      "otpResendCount": 1,
-      "tokenVersion": 1,
-      "trialEndsAt": "2026-10-12T16:03:35.143Z",
-      "otpResendWindowStart": "2026-10-05T17:54:02.490Z"
     }
   ],
   "transactions": [
@@ -194,6 +171,50 @@
     }
   ],
   "logs": [
+    {
+      "id": "log-1791360976728-ibrvc",
+      "userId": "super-admin-1",
+      "userName": "Mizan (Super Admin)",
+      "userEmail": "mizan.boss@gmail.com",
+      "action": "ACCOUNT_DELETE",
+      "details": "Permanently deleted account of Demo Mizan (mizan67vu@gmail.com)",
+      "ip": "127.0.0.1",
+      "device": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+      "timestamp": "2026-10-07T08:16:16.728Z"
+    },
+    {
+      "id": "log-1791360972995-ouc32",
+      "userId": "super-admin-1",
+      "userName": "Mizan (Super Admin)",
+      "userEmail": "mizan.boss@gmail.com",
+      "action": "ACCOUNT_DELETE",
+      "details": "Permanently deleted account of M Cloud (mizan.cloud.9@gmail.com)",
+      "ip": "127.0.0.1",
+      "device": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+      "timestamp": "2026-10-07T08:16:12.995Z"
+    },
+    {
+      "id": "log-1791360942082-idu99",
+      "userId": "super-admin-1",
+      "userName": "Mizan (Super Admin)",
+      "userEmail": "mizan.boss@gmail.com",
+      "action": "LOGIN",
+      "details": "User signed in successfully (Role: super_admin)",
+      "ip": "127.0.0.1",
+      "device": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+      "timestamp": "2026-10-07T08:15:42.082Z"
+    },
+    {
+      "id": "log-1791360825278-siu4g",
+      "userId": "user-1791360825234-fa4zq",
+      "userName": "Demo Mizan",
+      "userEmail": "mizan67vu@gmail.com",
+      "action": "ACCOUNT_REGISTER",
+      "details": "Registered account with 7-day free trial auto-approval",
+      "ip": "127.0.0.1",
+      "device": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+      "timestamp": "2026-10-07T08:13:45.278Z"
+    },
     {
       "id": "log-1791223047677-wazll",
       "userId": "user-1791216211121-9do7o",
