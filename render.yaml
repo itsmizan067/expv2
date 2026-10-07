@@ -24,5 +24,9 @@ services:
         value: '"PocketBalance" <pocket.balance.exp@gmail.com>'
       - key: SMTP_PASSWORD
         sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: GMAIL_WEBHOOK_URL
+        sync: false
       - key: OTP_SECRET
         generateValue: true

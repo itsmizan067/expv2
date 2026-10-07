@@ -267,18 +267,62 @@ export class NodemailerEmailService implements IEmailService {
   }
 
   public isConfigured(): boolean {
+    const webhookUrl = (process.env.GMAIL_WEBHOOK_URL || process.env.EMAIL_WEBHOOK_URL || '').trim();
+    if (webhookUrl) return true;
+
+    const brevoKey = (process.env.BREVO_API_KEY || '').trim();
+    if (brevoKey) return true;
+
     const user = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
     const pass = (process.env.SMTP_PASSWORD || process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '').trim();
     return Boolean(user && pass);
   }
 
   public async testConnection(): Promise<{ success: boolean; message: string; details?: any }> {
+    const webhookUrl = (process.env.GMAIL_WEBHOOK_URL || process.env.EMAIL_WEBHOOK_URL || '').trim();
+    if (webhookUrl) {
+      try {
+        const res = await fetch(webhookUrl, { redirect: 'follow' });
+        if (res.ok) {
+          return {
+            success: true,
+            message: 'Google Apps Script HTTPS Relay verified and connected successfully (100% Render-compatible)!',
+          };
+        }
+      } catch (err: any) {
+        return {
+          success: false,
+          message: 'Failed to reach Google Apps Script Webhook: ' + (err?.message || err),
+        };
+      }
+    }
+
+    const brevoKey = (process.env.BREVO_API_KEY || '').trim();
+    if (brevoKey) {
+      try {
+        const res = await fetch('https://api.brevo.com/v3/account', {
+          headers: { 'api-key': brevoKey, 'accept': 'application/json' },
+        });
+        if (res.ok) {
+          return {
+            success: true,
+            message: 'Brevo API authentication verified successfully over HTTPS (Render-compatible)!',
+          };
+        }
+      } catch (err: any) {
+        return {
+          success: false,
+          message: 'Failed to connect to Brevo API: ' + (err?.message || err),
+        };
+      }
+    }
+
     this.initTransporter();
 
     if (!this.transporter) {
       return {
         success: false,
-        message: 'SMTP credentials missing: Please provide SMTP_USER and SMTP_PASSWORD in your .env or Render Dashboard.',
+        message: 'SMTP credentials missing: Please provide GMAIL_WEBHOOK_URL, BREVO_API_KEY, or SMTP_USER/SMTP_PASSWORD in your .env or Render Dashboard.',
         details: {
           smtpUserConfigured: Boolean(process.env.SMTP_USER || process.env.GMAIL_USER),
           smtpPasswordConfigured: Boolean(process.env.SMTP_PASSWORD || process.env.GMAIL_APP_PASSWORD),
@@ -303,7 +347,7 @@ export class NodemailerEmailService implements IEmailService {
           command: err?.command,
           response: err?.response,
           hint: isTimeout
-            ? "Outbound SMTP port 587/465 is blocked by your hosting provider's firewall (such as Render free tier). On Render, outbound SMTP ports are blocked on free instances."
+            ? "Outbound SMTP port 587/465 is blocked by Render's free tier firewall. To send real emails from Render Free tier, add GMAIL_WEBHOOK_URL (Google Apps Script HTTPS relay) in Render Dashboard (Environment tab) to send over HTTPS port 443."
             : err?.code === 'EAUTH'
             ? 'Gmail authentication failed: Verify 2-Step Verification is active and use a 16-character Google App Password (not standard account password).'
             : 'Check SMTP host, port, and credentials.',
@@ -313,6 +357,8 @@ export class NodemailerEmailService implements IEmailService {
   }
 
   public getStatus() {
+    const webhookUrl = (process.env.GMAIL_WEBHOOK_URL || process.env.EMAIL_WEBHOOK_URL || '').trim();
+    const brevoKey = (process.env.BREVO_API_KEY || '').trim();
     const host = process.env.SMTP_HOST || 'smtp.gmail.com';
     const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
     const user = (process.env.SMTP_USER || process.env.GMAIL_USER || '').replace(/^["']|["']$/g, '').trim();
@@ -320,15 +366,92 @@ export class NodemailerEmailService implements IEmailService {
 
     return {
       configured: this.isConfigured(),
-      host,
-      port,
-      userMasked: this.maskUser(user),
+      host: webhookUrl ? 'script.google.com (HTTPS)' : brevoKey ? 'api.brevo.com (HTTPS)' : host,
+      port: webhookUrl || brevoKey ? 443 : port,
+      userMasked: webhookUrl ? 'Google Apps Script Relay' : brevoKey ? 'Brevo HTTPS API' : this.maskUser(user),
       from,
-      mode: this.isConfigured() ? ('live_gmail_smtp' as const) : ('unconfigured' as const),
+      mode: webhookUrl
+        ? ('live_google_relay_http' as const)
+        : brevoKey
+        ? ('live_brevo_http' as const)
+        : this.isConfigured()
+        ? ('live_gmail_smtp' as const)
+        : ('unconfigured' as const),
     };
   }
 
   public async sendEmail(options: SendEmailOptions): Promise<{ success: boolean; error?: string }> {
+    const webhookUrl = (process.env.GMAIL_WEBHOOK_URL || process.env.EMAIL_WEBHOOK_URL || '').trim();
+
+    // 1. If GMAIL_WEBHOOK_URL is set, send via Google Apps Script HTTPS Relay (Port 443 - 100% Free, NO new signup!)
+    if (webhookUrl) {
+      try {
+        const res = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          redirect: 'follow',
+          body: JSON.stringify({
+            to: options.to,
+            subject: options.subject,
+            html: options.html,
+            text: options.text,
+          }),
+        });
+
+        const data: any = await res.json().catch(() => ({}));
+        if (res.ok && data?.success !== false) {
+          console.log(`✅ [EmailService:GoogleRelay] Real email sent to ${this.maskUser(options.to)} via Google HTTPS`);
+          return { success: true };
+        } else {
+          console.error('❌ [EmailService:GoogleRelay] Delivery failed:', data);
+          return { success: false, error: data?.error || 'Google Apps Script relay error' };
+        }
+      } catch (err: any) {
+        console.error('❌ [EmailService:GoogleRelay] Error calling Google Relay:', err?.message || err);
+        return { success: false, error: err?.message || 'Failed to dispatch email via Google Relay' };
+      }
+    }
+
+    const brevoKey = (process.env.BREVO_API_KEY || '').trim();
+
+    // 2. If BREVO_API_KEY is present, dispatch via Brevo HTTPS API
+    if (brevoKey) {
+      try {
+        const senderEmail = (process.env.SMTP_USER || 'pocket.balance.exp@gmail.com').trim();
+        const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'accept': 'application/json',
+            'api-key': brevoKey,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            sender: {
+              name: 'PocketBalance',
+              email: senderEmail,
+            },
+            to: [{ email: options.to }],
+            subject: options.subject,
+            htmlContent: options.html,
+            textContent: options.text,
+          }),
+        });
+
+        const data: any = await res.json();
+        if (res.ok && (data?.messageId || data?.id)) {
+          console.log(`✅ [EmailService:Brevo HTTPS] Real email delivered to ${this.maskUser(options.to)} via HTTPS (ID: ${data.messageId || data.id})`);
+          return { success: true };
+        } else {
+          console.error('❌ [EmailService:Brevo HTTPS] Delivery failed:', data);
+          return { success: false, error: data?.message || 'Brevo HTTPS delivery failure' };
+        }
+      } catch (err: any) {
+        console.error('❌ [EmailService:Brevo HTTPS] Error calling Brevo API:', err?.message || err);
+        return { success: false, error: err?.message || 'Failed to dispatch email via Brevo API' };
+      }
+    }
+
+    // 2. Otherwise dispatch via Nodemailer Gmail SMTP
     if (!this.transporter) {
       this.initTransporter();
     }
@@ -359,7 +482,7 @@ export class NodemailerEmailService implements IEmailService {
       console.error(`❌ [EmailService] Failed to send email to ${this.maskUser(options.to)}:`, err?.message || err);
       const isTimeout = err?.code === 'ETIMEDOUT' || err?.message?.toLowerCase().includes('timeout');
       const errorMsg = isTimeout
-        ? "Outbound SMTP port 587/465 is blocked by network firewall (Render free tier blocks outbound SMTP ports)."
+        ? "Outbound SMTP port 587/465 is blocked by Render's free tier firewall. To send real emails from Render Free tier, add a free BREVO_API_KEY in Render Dashboard (Environment tab) to send over HTTPS port 443."
         : err?.message || 'SMTP delivery failure.';
       return {
         success: false,
