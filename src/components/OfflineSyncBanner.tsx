@@ -47,6 +47,13 @@ export const OfflineSyncBanner: React.FC<OfflineSyncBannerProps> = ({
               <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
               <span className="truncate">Syncing to cloud database...</span>
             </div>
+          ) : lastSyncResult?.status === 'subscription_required' ? (
+            <div className="flex items-center space-x-1.5 text-amber-400 font-medium truncate">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+              <span className="truncate">
+                <strong>Cloud Sync Paused:</strong> Trial ended. Records saved safely on device. Please upgrade.
+              </span>
+            </div>
           ) : pendingCount > 0 ? (
             <div className="flex items-center space-x-1.5 text-amber-300 font-medium truncate">
               <CloudUpload className="w-3.5 h-3.5 shrink-0 text-amber-400" />

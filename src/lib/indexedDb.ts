@@ -1,4 +1,5 @@
 import { Transaction, SyncQueueItem } from '../types';
+import { compareTransactionsDescending } from './dateUtils';
 
 const DB_NAME = 'PocketBalance_DB';
 const DB_VERSION = 2;
@@ -70,8 +71,8 @@ class IndexedDbService {
         request.onsuccess = () => {
           // Filter out deleted/tombstone records from active display list
           const activeTxs = (request.result || []).filter((t: Transaction) => !t.isDeleted);
-          // Sort descending by date, then createdAt
-          activeTxs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          // Sort descending by date, then createdAt, then id
+          activeTxs.sort(compareTransactionsDescending);
           resolve(activeTxs);
         };
         request.onerror = () => reject(request.error);
@@ -81,7 +82,9 @@ class IndexedDbService {
       try {
         const raw = localStorage.getItem(`income_pwa_transactions_${userId}`);
         if (!raw) return [];
-        return (JSON.parse(raw) || []).filter((t: Transaction) => !t.isDeleted);
+        return (JSON.parse(raw) || [])
+          .filter((t: Transaction) => !t.isDeleted)
+          .sort(compareTransactionsDescending);
       } catch {
         return [];
       }

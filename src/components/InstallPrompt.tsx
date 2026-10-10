@@ -155,7 +155,10 @@ export const InstallPrompt: React.FC<InstallPromptProps> = ({
 
             <button
               id="dismiss-guide-modal-btn"
-              onClick={() => setShowGuideModal(false)}
+              onClick={() => {
+                setShowGuideModal(false);
+                onClose();
+              }}
               className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition"
             >
               Got it!

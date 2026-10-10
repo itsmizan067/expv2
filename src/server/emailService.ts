@@ -48,7 +48,7 @@ export interface IEmailService {
     port: number;
     userMasked: string;
     from: string;
-    mode: 'live_gmail_smtp' | 'unconfigured';
+    mode: 'live_gmail_smtp' | 'unconfigured' | 'live_google_relay_http' | 'live_brevo_http';
   };
 }
 

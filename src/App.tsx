@@ -4,6 +4,14 @@ import { OfflineStorageManager } from './lib/offlineManager';
 import { indexedDbService } from './lib/indexedDb';
 import { getStoredUser, setStoredUser, updateProfile } from './lib/api';
 import { formatLocalDate, getLocalMonthPrefix } from './lib/dateUtils';
+import {
+  isStandaloneApp,
+  isAppAlreadyInstalled,
+  markAppInstalled,
+  getOrInitNextInstallPromptTime,
+  scheduleNextInstallPrompt,
+  checkInstalledRelatedApps,
+} from './lib/pwaUtils';
 import { Header } from './components/Header';
 import { OfflineSyncBanner } from './components/OfflineSyncBanner';
 import { InstallPrompt } from './components/InstallPrompt';
@@ -67,6 +75,7 @@ export default function App() {
   // PWA Install Prompt
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isAppInstalled, setIsAppInstalled] = useState<boolean>(() => isAppAlreadyInstalled());
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -157,7 +166,7 @@ export default function App() {
     };
   }, [currentUser?.id, isAdmin]);
 
-  // ─── PWA Service Worker & Install Prompt ──────────────────────────────────
+  // ─── PWA Service Worker & Install Prompt Scheduling ───────────────────────
   useEffect(() => {
     if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
       navigator.serviceWorker.register('/sw.js').catch(err => {
@@ -165,21 +174,84 @@ export default function App() {
       });
     }
 
+    // Check if running as standalone or already marked as installed
+    if (isStandaloneApp() || isAppAlreadyInstalled()) {
+      setIsAppInstalled(true);
+      setShowInstallBanner(false);
+      return;
+    }
+
+    // Inspect getInstalledRelatedApps API if available (Chrome/Edge)
+    checkInstalledRelatedApps().then(installed => {
+      if (installed) {
+        setIsAppInstalled(true);
+        setShowInstallBanner(false);
+      }
+    });
+
+    // Detect display mode transition to standalone
+    const mediaQuery = window.matchMedia('(display-mode: standalone)');
+    const handleMediaChange = (e: MediaQueryListEvent) => {
+      if (e.matches) {
+        markAppInstalled();
+        setIsAppInstalled(true);
+        setShowInstallBanner(false);
+      }
+    };
+    try {
+      mediaQuery.addEventListener('change', handleMediaChange);
+    } catch {}
+
+    // When the user installs via browser UI, persist install state
+    const handleAppInstalled = () => {
+      markAppInstalled();
+      setIsAppInstalled(true);
+      setShowInstallBanner(false);
+      setDeferredInstallPrompt(null);
+    };
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    // Capture beforeinstallprompt (do NOT show banner immediately)
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault();
       setDeferredInstallPrompt(e);
-      setShowInstallBanner(true);
     };
-
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+
+    // Schedule prompt for website users:
+    // Only shows after at least 30 minutes (randomized between 30 and 45 minutes)
+    const targetTime = getOrInitNextInstallPromptTime();
+    const delayMs = Math.max(targetTime - Date.now(), 30 * 60 * 1000);
+
+    const timer = setTimeout(() => {
+      if (!isAppAlreadyInstalled() && !isStandaloneApp()) {
+        setShowInstallBanner(true);
+      }
+    }, delayMs);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+      try {
+        mediaQuery.removeEventListener('change', handleMediaChange);
+      } catch {}
+    };
   }, []);
+
+  const handleDismissInstallBanner = () => {
+    setShowInstallBanner(false);
+    // Postpone next prompt by 30+ random minutes
+    scheduleNextInstallPrompt();
+  };
 
   const handleInstallClick = async () => {
     if (deferredInstallPrompt) {
       deferredInstallPrompt.prompt();
       const { outcome } = await deferredInstallPrompt.userChoice;
       if (outcome === 'accepted') {
+        markAppInstalled();
+        setIsAppInstalled(true);
         setDeferredInstallPrompt(null);
         setShowInstallBanner(false);
       }
@@ -408,7 +480,7 @@ export default function App() {
           onSignUp={openSignUp}
           onLogout={() => {}}
           onInstallClick={handleInstallClick}
-          canInstall={!!deferredInstallPrompt}
+          canInstall={!isAppInstalled}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           onManualSync={() => {}}
@@ -427,7 +499,7 @@ export default function App() {
           deferredPrompt={deferredInstallPrompt}
           onInstall={handleInstallClick}
           isOpen={showInstallBanner}
-          onClose={() => setShowInstallBanner(false)}
+          onClose={handleDismissInstallBanner}
         />
       </>
     );
@@ -465,7 +537,7 @@ export default function App() {
         onSignUp={openSignUp}
         onLogout={handleLogout}
         onInstallClick={handleInstallClick}
-        canInstall={!!deferredInstallPrompt || !showInstallBanner}
+        canInstall={!isAppInstalled}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onManualSync={triggerSync}
@@ -689,7 +761,7 @@ export default function App() {
         deferredPrompt={deferredInstallPrompt}
         onInstall={handleInstallClick}
         isOpen={showInstallBanner}
-        onClose={() => setShowInstallBanner(false)}
+        onClose={handleDismissInstallBanner}
       />
 
       {currentUser && (

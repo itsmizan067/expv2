@@ -154,13 +154,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         }
       }
     } catch (err: any) {
-      // If login failed because email is not verified yet
+      // If login succeeded but email is not verified yet, show as guidance, not an error
       if (err instanceof ApiError && err.code === 'EMAIL_NOT_VERIFIED') {
         setMaskedEmailStr(err.maskedEmail || maskEmail(email));
         setCooldown(60);
         setOtp('');
         setMode('verify-email');
-        setError(err.message || 'Please verify your Gmail address to continue.');
+        setError('');
+        setSuccessNotice(err.message || 'A 6-digit verification code has been sent to your Gmail inbox.');
       } else {
         setError(err?.message || 'Authentication failed. Please check your credentials.');
       }
@@ -271,8 +272,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   // 6. Password Reset Step 3: Set New Password
   const handleResetPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (!newPassword || newPassword.length === 0) {
+      setError('Please enter a new password.');
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -457,7 +458,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     required
-                    minLength={mode === 'register' ? 6 : 1}
+                    minLength={1}
                     autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                     className="w-full pl-10 pr-11 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition"
                   />
@@ -470,9 +471,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                {mode === 'register' && (
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 ml-1">Minimum 6 characters.</p>
-                )}
               </div>
 
               {/* Currency (register only) */}
@@ -684,7 +682,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
                     required
-                    minLength={6}
+                    minLength={1}
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition"
                   />
                 </div>
@@ -702,7 +700,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     value={confirmPassword}
                     onChange={e => setConfirmPassword(e.target.value)}
                     required
-                    minLength={6}
+                    minLength={1}
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition"
                   />
                 </div>

@@ -63,8 +63,18 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   tags TEXT[] DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  is_deleted BOOLEAN DEFAULT FALSE
+  is_deleted BOOLEAN DEFAULT FALSE,
+  deleted_at TIMESTAMPTZ,
+  version INT DEFAULT 1,
+  client_mutation_id TEXT
 );
+
+-- Migration helpers if upgrading an existing Supabase transactions table:
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS version INT DEFAULT 1;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS client_mutation_id TEXT;
+
 
 -- 3. ACTIVITY LOGS TABLE
 CREATE TABLE IF NOT EXISTS public.activity_logs (

@@ -17,6 +17,11 @@ import {
   Shield,
   Star,
   X,
+  Mail,
+  Github,
+  Linkedin,
+  Twitter,
+  Globe,
 } from 'lucide-react';
 import { LineArtBackground } from './LineArtBackground';
 
@@ -411,13 +416,113 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSignIn, onSignUp }) 
       </section>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-slate-800 py-8">
-        <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
-          <div className="flex items-center space-x-2">
-            <img src="/logo.png" alt="EXP Tracker Logo" className="w-5 h-5 rounded-md object-cover" />
-            <span className="font-bold text-slate-400">EXP Tracker</span>
+      <footer className="border-t border-slate-800/80 bg-slate-950/80 backdrop-blur-sm py-10 sm:py-12 mt-4">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-8 pb-8 border-b border-slate-900">
+            {/* Left Side: Company Info & Official Gmail */}
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2.5">
+                <img
+                  src="/logo.png"
+                  alt="PocketBalance Logo"
+                  className="w-7 h-7 rounded-lg object-cover ring-1 ring-emerald-500/30 shadow-md shadow-emerald-950/40"
+                />
+                <span className="font-extrabold text-base tracking-tight text-white">
+                  Pocket<span className="text-emerald-400">Balance</span>
+                </span>
+                <span className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  Official
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-400 max-w-sm leading-relaxed">
+                Smart offline-first personal finance platform for effortless expense tracking and real-time financial clarity.
+              </p>
+
+              <div className="pt-1">
+                <a
+                  href="mailto:pocket.balance.exp@gmail.com"
+                  className="inline-flex items-center space-x-2.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40 text-slate-300 hover:text-emerald-400 transition-all text-xs group"
+                >
+                  <Mail className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-400 transition-colors" />
+                  <span className="font-mono text-[11px] sm:text-xs">pocket.balance.exp@gmail.com</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Right Side: Developer Info, Social Links & Copyright */}
+            <div className="flex flex-col sm:items-end space-y-3">
+              <div className="flex items-center space-x-2 text-xs text-slate-400">
+                <span>Crafted by</span>
+                <span className="font-semibold text-slate-200 hover:text-emerald-400 transition-colors">
+                  Md Mizanur Rahman
+                </span>
+              </div>
+
+              {/* Social Media Links */}
+              <div className="flex items-center space-x-2">
+                <a
+                  href="https://github.com/itsmizan067"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="GitHub Profile"
+                  title="GitHub: itsmizan067"
+                  className="w-8 h-8 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40 flex items-center justify-center text-slate-400 hover:text-emerald-400 hover:scale-105 active:scale-95 transition-all"
+                >
+                  <Github className="w-4 h-4" />
+                </a>
+                <a
+                  href="https://linkedin.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="LinkedIn Profile"
+                  title="LinkedIn"
+                  className="w-8 h-8 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40 flex items-center justify-center text-slate-400 hover:text-emerald-400 hover:scale-105 active:scale-95 transition-all"
+                >
+                  <Linkedin className="w-4 h-4" />
+                </a>
+                <a
+                  href="https://twitter.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Twitter / X Profile"
+                  title="Twitter / X"
+                  className="w-8 h-8 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40 flex items-center justify-center text-slate-400 hover:text-emerald-400 hover:scale-105 active:scale-95 transition-all"
+                >
+                  <Twitter className="w-4 h-4" />
+                </a>
+                <a
+                  href="https://github.com/itsmizan067"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Portfolio / Website"
+                  title="Website"
+                  className="w-8 h-8 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40 flex items-center justify-center text-slate-400 hover:text-emerald-400 hover:scale-105 active:scale-95 transition-all"
+                >
+                  <Globe className="w-4 h-4" />
+                </a>
+              </div>
+
+              {/* Copyright Info */}
+              <div className="text-[11px] text-slate-500 sm:text-right">
+                <p>© {new Date().getFullYear()} PocketBalance. All rights reserved.</p>
+                <p className="text-[10px] text-slate-600 mt-0.5">
+                  Offline-Ready · Cloud Sync · End-to-End Encrypted
+                </p>
+              </div>
+            </div>
           </div>
-          <span>© {new Date().getFullYear()} · Offline-First · Cloud Sync · Secure · bKash Payments</span>
+
+          <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-600">
+            <span>Designed for seamless financial tracking on Web & Mobile PWA.</span>
+            <div className="flex items-center space-x-3">
+              <span>Security</span>
+              <span>·</span>
+              <span>Privacy</span>
+              <span>·</span>
+              <span>Terms</span>
+            </div>
+          </div>
         </div>
       </footer>
 

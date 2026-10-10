@@ -65,18 +65,21 @@ if (SUPABASE_URL && SUPABASE_KEY) {
 // ==========================================
 
 function hashPassword(password: string): string {
+  const passStr = String(password ?? '');
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto
-    .pbkdf2Sync(password, salt, 100_000, 64, 'sha512')
+    .pbkdf2Sync(passStr, salt, 100_000, 64, 'sha512')
     .toString('hex');
   return `${salt}:${hash}`;
 }
 
 function verifyPassword(password: string, stored: string): boolean {
+  if (!stored) return false;
+  const passStr = String(password ?? '');
   const [salt, storedHash] = stored.split(':');
   if (!salt || !storedHash) return false;
   const hash = crypto
-    .pbkdf2Sync(password, salt, 100_000, 64, 'sha512')
+    .pbkdf2Sync(passStr, salt, 100_000, 64, 'sha512')
     .toString('hex');
   return crypto.timingSafeEqual(
     Buffer.from(hash, 'hex'),
@@ -431,10 +434,10 @@ async function syncAllToSupabase(db: DatabaseSchema) {
         type: t.type,
         amount: t.amount,
         category: t.category,
-        date: t.date,
+        date: typeof t.date === 'string' ? t.date.slice(0, 10) : String(t.date || '').slice(0, 10),
         payment_method: t.paymentMethod,
         note: t.note || '',
-        tags: t.tags || [],
+        tags: Array.isArray(t.tags) ? t.tags : [],
         created_at: t.createdAt,
         updated_at: t.updatedAt,
         is_deleted: Boolean(t.isDeleted),
@@ -443,7 +446,33 @@ async function syncAllToSupabase(db: DatabaseSchema) {
         client_mutation_id: t.clientMutationId || null,
       }));
       const { error: txErr } = await supabase.from('transactions').upsert(txRows, { onConflict: 'id' });
-      if (txErr) console.warn('Supabase transactions upsert notice:', txErr.message);
+      if (txErr) {
+        console.warn('⚠️ Supabase transactions full schema upsert notice:', txErr.message);
+        // Fallback: If newer columns (deleted_at, version, client_mutation_id) do not exist yet in Supabase,
+        // retry with core columns so transaction data is ALWAYS persisted to the cloud!
+        const baseTxRows = db.transactions.map(t => ({
+          id: t.id,
+          user_id: t.userId,
+          type: t.type,
+          amount: t.amount,
+          category: t.category,
+          date: typeof t.date === 'string' ? t.date.slice(0, 10) : String(t.date || '').slice(0, 10),
+          payment_method: t.paymentMethod,
+          note: t.note || '',
+          tags: Array.isArray(t.tags) ? t.tags : [],
+          created_at: t.createdAt,
+          updated_at: t.updatedAt,
+          is_deleted: Boolean(t.isDeleted),
+        }));
+        const { error: baseErr } = await supabase.from('transactions').upsert(baseTxRows, { onConflict: 'id' });
+        if (baseErr) {
+          console.error('❌ Critical: Supabase transactions upsert failed even with base columns:', baseErr.message);
+        } else {
+          console.log(`✅ Supabase transactions synced successfully using base schema fallback (${baseTxRows.length} rows)`);
+        }
+      } else {
+        console.log(`✅ Supabase transactions synced successfully (${txRows.length} rows)`);
+      }
     }
 
     // 3. Sync Payment Requests
@@ -536,24 +565,47 @@ async function loadFromSupabase(): Promise<DatabaseSchema | null> {
       tokenVersion: u.token_version || 1,
     }));
 
-    const cloudTxs: Transaction[] = (txsRes.data || []).map((t: any) => ({
-      id: t.id,
-      userId: t.user_id,
-      type: t.type,
-      amount: Number(t.amount),
-      category: t.category,
-      date: typeof t.date === 'string' ? t.date.slice(0, 10) : String(t.date || '').slice(0, 10),
-      paymentMethod: t.payment_method,
-      note: t.note,
-      tags: Array.isArray(t.tags) ? t.tags : [],
-      createdAt: t.created_at,
-      updatedAt: t.updated_at,
-      syncStatus: 'synced',
-      isDeleted: Boolean(t.is_deleted),
-      deletedAt: t.deleted_at,
-      version: Number(t.version) || 1,
-      clientMutationId: t.client_mutation_id,
-    }));
+    const localDb = readDb();
+    let cloudTxs: Transaction[] = [];
+
+    if (txsRes.error) {
+      console.error('⚠️ Supabase transactions query warning:', txsRes.error.message);
+      cloudTxs = localDb.transactions || [];
+    } else {
+      cloudTxs = (txsRes.data || []).map((t: any) => ({
+        id: t.id,
+        userId: t.user_id,
+        type: t.type,
+        amount: Number(t.amount),
+        category: t.category,
+        date: typeof t.date === 'string' ? t.date.slice(0, 10) : String(t.date || '').slice(0, 10),
+        paymentMethod: t.payment_method,
+        note: t.note,
+        tags: Array.isArray(t.tags) ? t.tags : [],
+        createdAt: t.created_at,
+        updatedAt: t.updated_at,
+        syncStatus: 'synced',
+        isDeleted: Boolean(t.is_deleted),
+        deletedAt: t.deleted_at,
+        version: Number(t.version) || 1,
+        clientMutationId: t.client_mutation_id,
+      }));
+
+      // INTELLIGENT MERGE: Prevent data loss if server container restarted with cold cache.
+      // If local db.json has transactions not present in Supabase, preserve them!
+      let hadLocalMerged = false;
+      const cloudTxIdSet = new Set(cloudTxs.map(t => t.id));
+      for (const lTx of localDb.transactions || []) {
+        if (!cloudTxIdSet.has(lTx.id)) {
+          cloudTxs.push(lTx);
+          hadLocalMerged = true;
+        }
+      }
+      if (hadLocalMerged) {
+        console.log('🔄 Merged local offline transactions into restored state, syncing back to Supabase...');
+        triggerSupabaseSync({ ...localDb, transactions: cloudTxs });
+      }
+    }
 
     const cloudLogs: ActivityLog[] = (logsRes.data || []).map((l: any) => ({
       id: l.id,
@@ -764,15 +816,13 @@ async function startServer() {
   // 1. Register: creates unverified account, generates 6-digit OTP, sends via Gmail SMTP
   app.post('/api/auth/register', async (req, res) => {
     const { name, email, password, currency, monthlyBudgetLimit, openingBalance } = req.body;
-    if (!name || !email || !password) {
+    const cleanPassword = String(password ?? '');
+    const cleanEmail = String(email ?? '').trim().toLowerCase();
+    const cleanName = String(name ?? '').trim();
+
+    if (!cleanName || !cleanEmail || cleanPassword.length === 0) {
       return res.status(400).json({ error: 'Name, email, and password are required' });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters.' });
-    }
-
-    const cleanEmail = String(email).trim().toLowerCase();
-    const cleanName = String(name).trim();
 
     const db = readDb();
     const existingIndex = db.users.findIndex(u => u.email.toLowerCase() === cleanEmail);
@@ -790,7 +840,7 @@ async function startServer() {
       // Existing unverified account: regenerate OTP and dispatch fresh code
       const otp = generateOtp();
       existingUser.name = cleanName;
-      existingUser.passwordHash = hashPassword(password);
+      existingUser.passwordHash = hashPassword(cleanPassword);
       existingUser.otpHash = hashOtp(otp);
       existingUser.otpExpiresAt = new Date(Date.now() + OTP_EXPIRATION_MS).toISOString();
       existingUser.otpAttempts = 0;
@@ -833,7 +883,7 @@ async function startServer() {
       id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       name: cleanName,
       email: cleanEmail,
-      passwordHash: hashPassword(password),
+      passwordHash: hashPassword(cleanPassword),
       role: 'user',
       status: 'unverified',
       emailVerified: false,
@@ -1253,12 +1303,9 @@ async function startServer() {
   // 6. Password Recovery: Step 3 - Set New Password & Invalidate Existing Sessions
   app.post('/api/auth/reset-password', (req, res) => {
     const { email, otp, newPassword } = req.body;
-    if (!email || !newPassword) {
+    const cleanNewPassword = String(newPassword ?? '');
+    if (!email || cleanNewPassword.length === 0) {
       return res.status(400).json({ error: 'Email and new password are required' });
-    }
-
-    if (String(newPassword).length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters.' });
     }
 
     const cleanEmail = String(email).trim().toLowerCase();
@@ -1288,7 +1335,7 @@ async function startServer() {
     }
 
     // Update password
-    user.passwordHash = hashPassword(newPassword);
+    user.passwordHash = hashPassword(cleanNewPassword);
 
     // Invalidate existing sessions: increment tokenVersion & refresh active timestamp
     user.tokenVersion = (user.tokenVersion || 0) + 1;
@@ -1328,11 +1375,13 @@ async function startServer() {
   // 7. Login: validates credentials, verifies email status, rejects unverified or disabled accounts
   app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
-    if (!email || !password) {
+    const cleanPassword = String(password ?? '');
+    const cleanEmail = String(email ?? '').trim().toLowerCase();
+
+    if (!cleanEmail || cleanPassword.length === 0) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const cleanEmail = String(email).trim().toLowerCase();
     const db = readDb();
     const userIndex = db.users.findIndex(u => u.email.toLowerCase() === cleanEmail);
 
@@ -1343,7 +1392,7 @@ async function startServer() {
     const user = db.users[userIndex];
 
     // Verify password
-    const passwordOk = user.passwordHash ? verifyPassword(password, user.passwordHash) : false;
+    const passwordOk = user.passwordHash ? verifyPassword(cleanPassword, user.passwordHash) : false;
 
     if (!passwordOk) {
       return res.status(401).json({ error: 'Invalid email or password' });
@@ -1672,7 +1721,26 @@ async function startServer() {
   app.get('/api/transactions', requireActiveSubscription, (req, res) => {
     const userId = req.headers['x-user-id'] as string;
     const db = readDb();
-    const userTx = db.transactions.filter(t => t.userId === userId && !t.isDeleted);
+    const userTx = db.transactions
+      .filter(t => t.userId === userId && !t.isDeleted)
+      .sort((a, b) => {
+        const dayA = (a.date || '').slice(0, 10);
+        const dayB = (b.date || '').slice(0, 10);
+        if (dayA !== dayB) {
+          const timeDayB = new Date(dayB).getTime();
+          const timeDayA = new Date(dayA).getTime();
+          if (!isNaN(timeDayB) && !isNaN(timeDayA) && timeDayB !== timeDayA) {
+            return timeDayB - timeDayA;
+          }
+          return dayB.localeCompare(dayA);
+        }
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        if (!isNaN(timeB) && !isNaN(timeA) && timeB !== timeA) {
+          return timeB - timeA;
+        }
+        return (b.id || '').localeCompare(a.id || '');
+      });
     res.json({ transactions: userTx });
   });
 

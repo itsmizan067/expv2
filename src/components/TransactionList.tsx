@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Transaction } from '../types';
 import { CURRENCY_SYMBOLS, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../lib/constants';
+import { compareTransactionsDescending } from '../lib/dateUtils';
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -70,7 +71,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
     }
 
     return true;
-  });
+  }).sort(compareTransactionsDescending);
 
   const getMethodIcon = (method: string) => {
     switch (method) {

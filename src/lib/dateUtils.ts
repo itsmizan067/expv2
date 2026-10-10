@@ -31,3 +31,33 @@ export function parseLocalDate(dateStr: string): Date {
   }
   return new Date(dateStr);
 }
+
+/**
+ * Comparator for sorting transactions descending:
+ * 1. Date descending (e.g. '2026-10-07' before '2026-10-06')
+ * 2. If same date: createdAt descending (newest transaction on that day first)
+ * 3. Fallback: id descending
+ */
+export function compareTransactionsDescending(
+  a: { date: string; createdAt?: string; id?: string },
+  b: { date: string; createdAt?: string; id?: string }
+): number {
+  const dayA = (a.date || '').slice(0, 10);
+  const dayB = (b.date || '').slice(0, 10);
+  if (dayA !== dayB) {
+    const timeDayB = new Date(dayB).getTime();
+    const timeDayA = new Date(dayA).getTime();
+    if (!isNaN(timeDayB) && !isNaN(timeDayA) && timeDayB !== timeDayA) {
+      return timeDayB - timeDayA;
+    }
+    return dayB.localeCompare(dayA);
+  }
+
+  const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+  const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+  if (!isNaN(timeB) && !isNaN(timeA) && timeB !== timeA) {
+    return timeB - timeA;
+  }
+
+  return (b.id || '').localeCompare(a.id || '');
+}

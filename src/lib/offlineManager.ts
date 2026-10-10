@@ -6,6 +6,7 @@ import {
   ProcessedMutationResult,
 } from '../types';
 import { indexedDbService } from './indexedDb';
+import { compareTransactionsDescending } from './dateUtils';
 
 const BACKOFF_SCHEDULE_MS = [5000, 15000, 30000, 60000]; // 5s → 15s → 30s → 60s
 const MAX_BACKOFF_MS = 60000;
@@ -38,7 +39,9 @@ export class OfflineStorageManager {
     try {
       const raw = localStorage.getItem(`income_pwa_transactions_${this.userId}`);
       if (!raw) return [];
-      return (JSON.parse(raw) || []).filter((t: Transaction) => !t.isDeleted);
+      return (JSON.parse(raw) || [])
+        .filter((t: Transaction) => !t.isDeleted)
+        .sort(compareTransactionsDescending);
     } catch {
       return [];
     }
@@ -141,6 +144,7 @@ export class OfflineStorageManager {
       return queueItem;
     }
 
+    currentList.sort(compareTransactionsDescending);
     try {
       localStorage.setItem(`income_pwa_transactions_${this.userId}`, JSON.stringify(currentList));
     } catch {}
@@ -198,7 +202,19 @@ export class OfflineStorageManager {
     this.isSyncInProgress = true;
 
     try {
-      const mutations = await indexedDbService.getPendingMutations();
+      let mutations = await indexedDbService.getPendingMutations();
+
+      // Failsafe: If mutation queue is empty but local transactions have 'pending' status,
+      // re-enqueue them automatically so they are never stranded on the client!
+      if (mutations.length === 0) {
+        const localTxs = await indexedDbService.getAllTransactions(this.userId);
+        const pendingTxs = localTxs.filter(t => t.syncStatus === 'pending');
+        for (const pTx of pendingTxs) {
+          const item = await this.enqueueAction('create', pTx);
+          mutations.push(item);
+        }
+      }
+
       const lastCursor = (await this.getLastSyncCursor()) || localStorage.getItem(this.getCursorKey()) || undefined;
 
       const response = await fetch('/api/sync/incremental', {
