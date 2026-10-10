@@ -398,3 +398,20 @@ export async function restoreServerBackup(
   return await safeJson(res, 'Failed to restore backup to server');
 }
 
+export async function restoreTransaction(userId: string, transactionId: string): Promise<Transaction> {
+  const res = await fetch(`${API_BASE}/transactions/${transactionId}/restore`, {
+    method: 'POST',
+    headers: { 'x-user-id': userId },
+  });
+  const data = await safeJson<{ transaction: Transaction }>(res, 'Failed to restore transaction');
+  return data.transaction;
+}
+
+export async function getDeletedTransactions(userId: string): Promise<Transaction[]> {
+  const res = await fetch(`${API_BASE}/transactions/deleted`, {
+    headers: { 'x-user-id': userId },
+  });
+  const data = await safeJson<{ transactions: Transaction[] }>(res, 'Failed to fetch deleted transactions');
+  return data.transactions;
+}
+

@@ -149,7 +149,15 @@ class IndexedDbService {
       return new Promise((resolve, reject) => {
         const tx = db.transaction('transactions', 'readwrite');
         const store = tx.objectStore('transactions');
-        store.delete(id);
+        const getReq = store.get(id);
+        getReq.onsuccess = () => {
+          const item = getReq.result as Transaction | undefined;
+          if (item) {
+            item.isDeleted = true;
+            item.deletedAt = new Date().toISOString();
+            store.put(item);
+          }
+        };
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
       });
@@ -159,8 +167,69 @@ class IndexedDbService {
         const raw = localStorage.getItem(key);
         if (!raw) return;
         const list: Transaction[] = JSON.parse(raw);
-        localStorage.setItem(key, JSON.stringify(list.filter(t => t.id !== id)));
+        const idx = list.findIndex(t => t.id === id);
+        if (idx !== -1) {
+          list[idx].isDeleted = true;
+          list[idx].deletedAt = new Date().toISOString();
+          localStorage.setItem(key, JSON.stringify(list));
+        }
       } catch {}
+    }
+  }
+
+  async getDeletedTransactions(userId: string): Promise<Transaction[]> {
+    try {
+      const db = await this.getDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('transactions', 'readonly');
+        const store = tx.objectStore('transactions');
+        const index = store.index('userId');
+        const request = index.getAll(userId);
+
+        request.onsuccess = () => {
+          const deletedTxs = (request.result || []).filter((t: Transaction) => t.isDeleted);
+          deletedTxs.sort(compareTransactionsDescending);
+          resolve(deletedTxs);
+        };
+        request.onerror = () => reject(request.error);
+      });
+    } catch {
+      try {
+        const raw = localStorage.getItem(`income_pwa_transactions_${userId}`);
+        if (!raw) return [];
+        return (JSON.parse(raw) || [])
+          .filter((t: Transaction) => t.isDeleted)
+          .sort(compareTransactionsDescending);
+      } catch {
+        return [];
+      }
+    }
+  }
+
+  async restoreTransaction(id: string, userId: string): Promise<Transaction | null> {
+    try {
+      const db = await this.getDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('transactions', 'readwrite');
+        const store = tx.objectStore('transactions');
+        const getReq = store.get(id);
+        getReq.onsuccess = () => {
+          const item = getReq.result as Transaction | undefined;
+          if (item) {
+            item.isDeleted = false;
+            item.deletedAt = undefined;
+            item.updatedAt = new Date().toISOString();
+            item.syncStatus = 'pending';
+            store.put(item);
+            resolve(item);
+          } else {
+            resolve(null);
+          }
+        };
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch {
+      return null;
     }
   }
 

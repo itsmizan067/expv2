@@ -155,6 +155,18 @@ export class OfflineStorageManager {
     return queueItem;
   }
 
+  /**
+   * Revert / restore a previously soft-deleted transaction
+   */
+  async restoreAction(transaction: Transaction): Promise<SyncQueueItem> {
+    const restoredTx: Transaction = {
+      ...transaction,
+      isDeleted: false,
+      deletedAt: undefined,
+    };
+    return await this.enqueueAction('update', restoredTx);
+  }
+
   resetBackoff(): void {
     this.retryAttempt = 0;
     if (this.backoffTimer) {

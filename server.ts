@@ -1916,6 +1916,61 @@ async function startServer() {
     res.json({ message: 'Transaction deleted successfully (tombstone recorded)', transaction: existing });
   });
 
+  // 4b. Restore soft-deleted transaction (Subscription Protected)
+  app.post('/api/transactions/:id/restore', requireActiveSubscription, (req, res) => {
+    const userId = req.headers['x-user-id'] as string;
+    const { id } = req.params;
+    const db = readDb();
+    const txIndex = db.transactions.findIndex(t => t.id === id && t.userId === userId);
+
+    if (txIndex === -1) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+
+    const existing = db.transactions[txIndex];
+    const now = new Date().toISOString();
+    const newVersion = (existing.version || 1) + 1;
+    const mutId = `mut-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+    existing.isDeleted = false;
+    existing.deletedAt = undefined;
+    existing.updatedAt = now;
+    existing.version = newVersion;
+    existing.clientMutationId = mutId;
+
+    db.transactions[txIndex] = existing;
+    if (!db.processedMutations) db.processedMutations = {};
+    db.processedMutations[mutId] = {
+      transactionId: existing.id,
+      action: 'update',
+      version: newVersion,
+      processedAt: now,
+    };
+    writeDb(db);
+
+    const user = db.users.find(u => u.id === userId);
+    addActivityLog(
+      userId,
+      user?.name || 'User',
+      user?.email || 'user',
+      'TRANSACTION_UPDATE',
+      `Restored soft-deleted transaction ID ${id} (${existing.type} of $${existing.amount})`,
+      req
+    );
+
+    res.json({ message: 'Transaction restored successfully', transaction: existing });
+  });
+
+  // 4c. Get all soft-deleted transactions for user (Recycle Bin / Audit)
+  app.get('/api/transactions/deleted', requireActiveSubscription, (req, res) => {
+    const userId = req.headers['x-user-id'] as string;
+    const db = readDb();
+    const deletedTx = db.transactions
+      .filter(t => t.userId === userId && t.isDeleted)
+      .sort((a, b) => new Date(b.deletedAt || b.updatedAt).getTime() - new Date(a.deletedAt || a.updatedAt).getTime());
+    res.json({ transactions: deletedTx });
+  });
+
   // 5. INCREMENTAL CHANGE-BASED SYNCHRONIZATION (Subscription Protected)
   app.post('/api/sync/incremental', requireActiveSubscription, (req, res) => {
     const userId = req.headers['x-user-id'] as string;
@@ -2035,8 +2090,8 @@ async function startServer() {
         } else {
           const existing = db.transactions[idx];
 
-          if (existing.isDeleted) {
-            // Tombstone wins: rejected update to deleted item
+          if (existing.isDeleted && targetTx.isDeleted !== false) {
+            // Tombstone wins: rejected normal update to deleted item
             conflictsResolvedCount++;
             db.processedMutations[mutId] = {
               transactionId: existing.id,
@@ -2050,6 +2105,34 @@ async function startServer() {
               action: 'update',
               status: 'conflict_rejected',
               canonicalTransaction: existing,
+            });
+          } else if (existing.isDeleted && targetTx.isDeleted === false) {
+            // Explicit restoration / undelete
+            const nextVer = (existing.version || 1) + 1;
+            db.transactions[idx] = {
+              ...existing,
+              ...targetTx,
+              userId,
+              isDeleted: false,
+              deletedAt: undefined,
+              version: nextVer,
+              updatedAt: now,
+              clientMutationId: mutId,
+              syncStatus: 'synced',
+            };
+            db.processedMutations[mutId] = {
+              transactionId: existing.id,
+              action: 'update',
+              version: nextVer,
+              processedAt: now,
+            };
+            committedMutationIds.add(mutId);
+            processedResults.push({
+              clientMutationId: mutId,
+              transactionId: existing.id,
+              action: 'update',
+              status: 'committed',
+              canonicalTransaction: db.transactions[idx],
             });
           } else if ((existing.version || 1) > (item.baseVersion || 0)) {
             // Concurrent modification conflict: compare timestamps
