@@ -1,4 +1,4 @@
-const CACHE_NAME = 'exp-tracker-pwa-v2';
+const CACHE_NAME = 'exp-tracker-pwa-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -26,6 +26,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
+            console.log('[ServiceWorker] Purging stale cache:', cache);
             return caches.delete(cache);
           }
         })
@@ -37,22 +38,61 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  // Let API requests go directly to network or fail so client offline-queue can catch it
+
+  // Let API requests bypass the service worker directly
   if (request.url.includes('/api/')) {
     return;
   }
 
+  // 1. Navigation & HTML Requests: NETWORK-FIRST strategy
+  // Always fetch fresh HTML from the server when online to ensure latest hashed JS/CSS bundles are loaded.
+  // Fall back to cached HTML only when offline.
+  const isHtmlRequest =
+    request.mode === 'navigate' ||
+    (request.method === 'GET' && request.headers.get('accept')?.includes('text/html')) ||
+    request.url.endsWith('/index.html') ||
+    request.url === self.registration.scope;
+
+  if (isHtmlRequest) {
+    event.respondWith(
+      fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          // Offline fallback
+          const cached = await caches.match(request);
+          if (cached) return cached;
+          const rootCached = await caches.match('/');
+          if (rootCached) return rootCached;
+          return caches.match('/index.html');
+        })
+    );
+    return;
+  }
+
+  // 2. Static Assets (Images, Icons, Fonts, Hashed Bundles): CACHE-FIRST strategy
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       if (cachedResponse) {
         return cachedResponse;
       }
-      return fetch(request).catch(() => {
-        // Fallback for navigation
-        if (request.mode === 'navigate') {
-          return caches.match('/');
+      return fetch(request).then((networkResponse) => {
+        if (
+          networkResponse &&
+          networkResponse.status === 200 &&
+          (request.url.includes('/assets/') || request.url.match(/\.(png|jpg|jpeg|svg|ico|webmanifest)$/))
+        ) {
+          const copy = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
         }
+        return networkResponse;
       });
     })
   );
 });
+
