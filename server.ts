@@ -687,24 +687,32 @@ async function loadFromSupabase(): Promise<DatabaseSchema | null> {
       console.error('⚠️ Supabase transactions query warning:', txsRes.error.message);
       cloudTxs = localDb.transactions || [];
     } else {
-      cloudTxs = (txsRes.data || []).map((t: any) => ({
-        id: t.id,
-        userId: t.user_id,
-        type: t.type,
-        amount: Number(t.amount),
-        category: t.category,
-        date: typeof t.date === 'string' ? t.date.slice(0, 10) : String(t.date || '').slice(0, 10),
-        paymentMethod: t.payment_method,
-        note: t.note,
-        tags: Array.isArray(t.tags) ? t.tags : [],
-        createdAt: t.created_at,
-        updatedAt: t.updated_at,
-        syncStatus: 'synced',
-        isDeleted: Boolean(t.is_deleted),
-        deletedAt: t.deleted_at,
-        version: Number(t.version) || 1,
-        clientMutationId: t.client_mutation_id,
-      }));
+      const localTxIdSet = new Set((localDb.transactions || []).map(t => t.id));
+      const now = new Date().toISOString();
+
+      cloudTxs = (txsRes.data || []).map((t: any) => {
+        const isNewToLocal = !localTxIdSet.has(t.id);
+        return {
+          id: t.id,
+          userId: t.user_id,
+          type: t.type,
+          amount: Number(t.amount),
+          category: t.category,
+          date: typeof t.date === 'string' ? t.date.slice(0, 10) : String(t.date || '').slice(0, 10),
+          paymentMethod: t.payment_method,
+          note: t.note,
+          tags: Array.isArray(t.tags) ? t.tags : [],
+          createdAt: t.created_at,
+          // If transaction was directly added in Supabase and is newly discovered by server,
+          // assign current timestamp so existing client devices' incremental sync cursor will download it!
+          updatedAt: isNewToLocal ? now : (t.updated_at || now),
+          syncStatus: 'synced',
+          isDeleted: Boolean(t.is_deleted),
+          deletedAt: t.deleted_at,
+          version: Number(t.version) || 1,
+          clientMutationId: t.client_mutation_id,
+        };
+      });
 
       // INTELLIGENT MERGE: Prevent data loss if server container restarted with cold cache.
       // If local db.json has transactions not present in Supabase, preserve them!
@@ -815,8 +823,10 @@ async function startServer() {
   const app = express();
   app.use(express.json({ limit: '10mb' }));
 
-  // Hydrate state from Supabase on startup (if connected)
-  await loadFromSupabase();
+  // Hydrate state from Supabase on startup (if connected and not in test environment)
+  if (process.env.NODE_ENV !== 'test') {
+    await loadFromSupabase();
+  }
 
   // Health check
   app.get('/api/health', (_req, res) => {
@@ -901,7 +911,7 @@ async function startServer() {
     }
   });
 
-  // Manual trigger to force immediate sync to Supabase
+  // Manual trigger to force immediate sync to Supabase (push local to cloud)
   app.post('/api/supabase/sync', async (_req, res) => {
     if (!supabase) {
       return res.status(400).json({
@@ -915,6 +925,36 @@ async function startServer() {
       res.json({
         success: lastSupabaseSyncStatus.success,
         syncStatus: lastSupabaseSyncStatus,
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        success: false,
+        error: err.message,
+      });
+    }
+  });
+
+  // Pull latest cloud data from Supabase down into local cache (cloud to local)
+  app.all('/api/supabase/pull', async (_req, res) => {
+    if (!supabase) {
+      return res.status(400).json({
+        success: false,
+        error: 'Supabase is not configured. SUPABASE_KEY is missing from environment variables.',
+      });
+    }
+    try {
+      const restored = await loadFromSupabase();
+      if (!restored) {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to load authoritative state from Supabase cloud database.',
+        });
+      }
+      res.json({
+        success: true,
+        message: 'Successfully pulled latest authoritative state from Supabase cloud database!',
+        usersCount: restored.users.length,
+        transactionsCount: restored.transactions.length,
       });
     } catch (err: any) {
       res.status(500).json({

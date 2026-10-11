@@ -123,6 +123,12 @@ export default function App() {
     if (!currentUser || isAdmin || !navigator.onLine) return;
     setIsSyncing(true);
     try {
+      // 1. Tell server to pull any new authoritative changes from Supabase (if direct DB inserts occurred)
+      try {
+        await fetch('/api/supabase/pull', { method: 'POST' });
+      } catch {}
+
+      // 2. Perform client incremental sync with server
       const result = await offlineManager.syncWithServer();
       setLastSyncResult(result);
       if (result.status === 'subscription_required') {
