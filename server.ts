@@ -43,6 +43,19 @@ if (!fs.existsSync(DATA_DIR)) {
 // SUPABASE CLOUD PERSISTENCE ADAPTER
 // ==========================================
 
+function detectSupabaseKeyRole(key?: string): 'service_role' | 'anon' | 'unknown' | 'none' {
+  if (!key) return 'none';
+  try {
+    const parts = key.split('.');
+    if (parts.length === 3) {
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+      if (payload.role === 'service_role') return 'service_role';
+      if (payload.role === 'anon') return 'anon';
+    }
+  } catch {}
+  return 'unknown';
+}
+
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://taesrkcpqujhkwvfsmke.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 
@@ -52,12 +65,16 @@ if (SUPABASE_URL && SUPABASE_KEY) {
     supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: { persistSession: false },
     });
-    console.log('⚡ Supabase Client initialized successfully for project:', SUPABASE_URL);
+    const keyRole = detectSupabaseKeyRole(SUPABASE_KEY);
+    console.log(`⚡ Supabase Client initialized successfully for project: ${SUPABASE_URL} (Key role: ${keyRole})`);
+    if (keyRole === 'anon') {
+      console.warn('⚠️ WARNING: SUPABASE_KEY is using the "anon" public key. If Row Level Security (RLS) is enabled in Supabase, write operations will be blocked. Please switch to the "service_role" secret key or disable RLS in your Supabase SQL editor.');
+    }
   } catch (err) {
     console.error('Failed to initialize Supabase client:', err);
   }
 } else {
-  console.log('ℹ️ Running in local JSON storage mode (SUPABASE_KEY not set).');
+  console.log('ℹ️ Running in local JSON storage mode (SUPABASE_KEY not set in .env or environment).');
 }
 
 // ==========================================
@@ -135,7 +152,10 @@ function planExpiryDate(): string {
 function isSubscriptionActive(user: User): boolean {
   if (user.role === 'admin' || user.role === 'super_admin') return true;
   if (user.plan === 'trial' && user.trialEndsAt && new Date() < new Date(user.trialEndsAt)) return true;
-  if ((user.plan === 'standard' || user.plan === 'premium') && user.planStatus === 'active' && user.planExpiresAt && new Date() < new Date(user.planExpiresAt)) return true;
+  if ((user.plan === 'standard' || user.plan === 'premium') && user.planStatus === 'active') {
+    if (!user.planExpiresAt) return true;
+    return new Date() < new Date(user.planExpiresAt);
+  }
   return false;
 }
 
@@ -371,6 +391,22 @@ function writeDb(data: DatabaseSchema) {
   triggerSupabaseSync(data);
 }
 
+// Track the last Supabase sync status for diagnostics
+let lastSupabaseSyncStatus: {
+  timestamp: string;
+  success: boolean;
+  usersSynced?: number;
+  transactionsSynced?: number;
+  error?: string;
+  code?: string;
+  details?: string;
+  hint?: string;
+} = {
+  timestamp: new Date().toISOString(),
+  success: false,
+  error: 'Supabase sync not initialized yet',
+};
+
 // Debounced background sync to Supabase
 let supabaseSyncTimeout: NodeJS.Timeout | null = null;
 let pendingSupabaseDb: DatabaseSchema | null = null;
@@ -390,6 +426,9 @@ function triggerSupabaseSync(data: DatabaseSchema) {
 async function syncAllToSupabase(db: DatabaseSchema) {
   if (!supabase) return;
   try {
+    let usersSuccess = false;
+    let txsSuccess = false;
+
     // 1. Sync Users
     if (db.users.length > 0) {
       const userRows = db.users.map(u => ({
@@ -423,12 +462,67 @@ async function syncAllToSupabase(db: DatabaseSchema) {
         token_version: u.tokenVersion || 1,
       }));
       const { error: userErr } = await supabase.from('users').upsert(userRows, { onConflict: 'id' });
-      if (userErr) console.warn('Supabase users upsert notice:', userErr.message);
+      if (userErr) {
+        console.warn('⚠️ Supabase users full schema upsert notice:', userErr.message, userErr.details || '', userErr.hint || '');
+        // Fallback: If newer auth columns (email_verified, otp_hash, token_version) do not exist yet in Supabase,
+        // retry with core user columns so users are always persisted and FK constraints are satisfied!
+        const baseUserRows = db.users.map(u => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          password_hash: u.passwordHash,
+          role: u.role,
+          status: u.status,
+          created_at: u.createdAt,
+          last_login_at: u.lastLoginAt,
+          last_active_at: u.lastActiveAt,
+          total_logins: u.totalLogins,
+          currency: u.currency || 'USD',
+          monthly_budget_limit: u.monthlyBudgetLimit || 0,
+          opening_balance: u.openingBalance || 0,
+          phone: u.phone || '',
+          profile_picture: u.profilePicture || '',
+          plan: u.plan || 'trial',
+          plan_status: u.planStatus || 'active',
+          trial_ends_at: u.trialEndsAt,
+          plan_expires_at: u.planExpiresAt,
+        }));
+        const { error: baseUserErr } = await supabase.from('users').upsert(baseUserRows, { onConflict: 'id' });
+        if (baseUserErr) {
+          console.error('❌ Critical: Supabase users upsert failed even with base columns:', baseUserErr.message, baseUserErr.details || '');
+          lastSupabaseSyncStatus = {
+            timestamp: new Date().toISOString(),
+            success: false,
+            error: `Users table upsert failed: ${baseUserErr.message}`,
+            code: baseUserErr.code,
+            details: baseUserErr.details,
+            hint: baseUserErr.hint,
+          };
+        } else {
+          usersSuccess = true;
+          console.log(`✅ Supabase users synced successfully using base schema fallback (${baseUserRows.length} rows)`);
+        }
+      } else {
+        usersSuccess = true;
+        console.log(`✅ Supabase users synced successfully (${userRows.length} rows)`);
+      }
+    } else {
+      usersSuccess = true;
     }
 
     // 2. Sync Transactions
     if (db.transactions.length > 0) {
-      const txRows = db.transactions.map(t => ({
+      // Ensure all transactions have a valid user_id in db.users to prevent foreign key constraint violations
+      const validUserIds = new Set(db.users.map(u => u.id));
+      const validTxs = db.transactions.filter(t => {
+        if (!validUserIds.has(t.userId)) {
+          console.warn(`⚠️ Skipping Supabase sync for transaction ${t.id} due to non-existent userId ${t.userId}`);
+          return false;
+        }
+        return true;
+      });
+
+      const txRows = validTxs.map(t => ({
         id: t.id,
         user_id: t.userId,
         type: t.type,
@@ -447,10 +541,10 @@ async function syncAllToSupabase(db: DatabaseSchema) {
       }));
       const { error: txErr } = await supabase.from('transactions').upsert(txRows, { onConflict: 'id' });
       if (txErr) {
-        console.warn('⚠️ Supabase transactions full schema upsert notice:', txErr.message);
+        console.warn('⚠️ Supabase transactions full schema upsert notice:', txErr.message, txErr.details || '', txErr.hint || '');
         // Fallback: If newer columns (deleted_at, version, client_mutation_id) do not exist yet in Supabase,
         // retry with core columns so transaction data is ALWAYS persisted to the cloud!
-        const baseTxRows = db.transactions.map(t => ({
+        const baseTxRows = validTxs.map(t => ({
           id: t.id,
           user_id: t.userId,
           type: t.type,
@@ -466,13 +560,34 @@ async function syncAllToSupabase(db: DatabaseSchema) {
         }));
         const { error: baseErr } = await supabase.from('transactions').upsert(baseTxRows, { onConflict: 'id' });
         if (baseErr) {
-          console.error('❌ Critical: Supabase transactions upsert failed even with base columns:', baseErr.message);
+          console.error('❌ Critical: Supabase transactions upsert failed even with base columns:', baseErr.message, baseErr.details || '');
+          lastSupabaseSyncStatus = {
+            timestamp: new Date().toISOString(),
+            success: false,
+            error: `Transactions table upsert failed: ${baseErr.message}`,
+            code: baseErr.code,
+            details: baseErr.details,
+            hint: baseErr.hint,
+          };
         } else {
+          txsSuccess = true;
           console.log(`✅ Supabase transactions synced successfully using base schema fallback (${baseTxRows.length} rows)`);
         }
       } else {
+        txsSuccess = true;
         console.log(`✅ Supabase transactions synced successfully (${txRows.length} rows)`);
       }
+    } else {
+      txsSuccess = true;
+    }
+
+    if (usersSuccess && txsSuccess) {
+      lastSupabaseSyncStatus = {
+        timestamp: new Date().toISOString(),
+        success: true,
+        usersSynced: db.users.length,
+        transactionsSynced: db.transactions.length,
+      };
     }
 
     // 3. Sync Payment Requests
@@ -710,6 +825,103 @@ async function startServer() {
       service: 'Personal Income Expense Management System Core API',
       time: new Date().toISOString(),
     });
+  });
+
+  // Supabase Diagnostics & Cloud Status Endpoint
+  app.get('/api/supabase/status', async (_req, res) => {
+    const keyRole = detectSupabaseKeyRole(SUPABASE_KEY);
+    if (!supabase) {
+      return res.json({
+        configured: false,
+        url: SUPABASE_URL || null,
+        keyProvided: Boolean(SUPABASE_KEY),
+        keyRole,
+        connected: false,
+        lastSync: lastSupabaseSyncStatus,
+        issues: [
+          'SUPABASE_KEY is missing or empty in your environment variables (.env or hosting dashboard).',
+          'Database operations are currently operating in local JSON fallback mode and NOT synchronizing to Supabase.',
+        ],
+        solution: [
+          '1. Open your Supabase Dashboard: https://supabase.com/dashboard/project/taesrkcpqujhkwvfsmke',
+          '2. Go to Project Settings -> API',
+          '3. Copy the "service_role" secret key (recommended for backend server) or "anon" public key',
+          '4. Paste it into your .env as SUPABASE_KEY=your_key or in your Render environment variables tab',
+          '5. If using "anon" key, run "ALTER TABLE public.transactions DISABLE ROW LEVEL SECURITY;" in Supabase SQL editor',
+        ],
+      });
+    }
+
+    try {
+      const [userCountRes, txCountRes] = await Promise.all([
+        supabase.from('users').select('*', { count: 'exact', head: true }),
+        supabase.from('transactions').select('*', { count: 'exact', head: true }),
+      ]);
+
+      const issues: string[] = [];
+      const solutions: string[] = [];
+
+      if (keyRole === 'anon') {
+        issues.push('SUPABASE_KEY is configured with the "anon" public key instead of "service_role".');
+        solutions.push('If Row Level Security (RLS) is enabled in Supabase, inserts will fail. Recommend using SUPABASE_SERVICE_ROLE_KEY or running "ALTER TABLE ... DISABLE ROW LEVEL SECURITY;" in SQL Editor.');
+      }
+
+      if (userCountRes.error) {
+        issues.push(`Users table error: ${userCountRes.error.message} (code: ${userCountRes.error.code})`);
+      }
+      if (txCountRes.error) {
+        issues.push(`Transactions table error: ${txCountRes.error.message} (code: ${txCountRes.error.code})`);
+      }
+
+      const db = readDb();
+      res.json({
+        configured: true,
+        url: SUPABASE_URL,
+        keyRole,
+        connected: !userCountRes.error && !txCountRes.error,
+        localCounts: {
+          users: db.users.length,
+          transactions: db.transactions.length,
+        },
+        supabaseCounts: {
+          users: userCountRes.count ?? null,
+          transactions: txCountRes.count ?? null,
+        },
+        lastSync: lastSupabaseSyncStatus,
+        issues,
+        solutions,
+      });
+    } catch (testErr: any) {
+      res.status(500).json({
+        configured: true,
+        connected: false,
+        error: testErr.message,
+        lastSync: lastSupabaseSyncStatus,
+      });
+    }
+  });
+
+  // Manual trigger to force immediate sync to Supabase
+  app.post('/api/supabase/sync', async (_req, res) => {
+    if (!supabase) {
+      return res.status(400).json({
+        success: false,
+        error: 'Supabase is not configured. SUPABASE_KEY is missing from environment variables.',
+      });
+    }
+    try {
+      const db = readDb();
+      await syncAllToSupabase(db);
+      res.json({
+        success: lastSupabaseSyncStatus.success,
+        syncStatus: lastSupabaseSyncStatus,
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        success: false,
+        error: err.message,
+      });
+    }
   });
 
   // ==========================================
